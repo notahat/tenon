@@ -21,6 +21,18 @@ export interface TableRef {
   readonly alias: string | null;
 }
 
+/** A SELECT-list projection. */
+export interface Project {
+  readonly kind: "Project";
+  readonly source: RelationNode;
+  readonly items: readonly ProjectionItem[];
+}
+
+export interface ProjectionItem {
+  readonly expression: ExpressionNode;
+  readonly outputName: string;
+}
+
 /** A WHERE filter applied on top of a source relation. */
 export interface Where {
   readonly kind: "Where";
@@ -54,7 +66,7 @@ export interface Offset {
   readonly count: number;
 }
 
-export type RelationNode = TableRef | Where | Order | Limit | Offset;
+export type RelationNode = TableRef | Project | Where | Order | Limit | Offset;
 
 /** Build a TableRef node. Pure. */
 export function tableRef(args: {
@@ -68,6 +80,22 @@ export function tableRef(args: {
     name: args.name,
     alias: args.alias ?? null,
   };
+}
+
+/** Build a Project node. Pure. */
+export function project(
+  source: RelationNode,
+  items: readonly ProjectionItem[],
+): Project {
+  return { kind: "Project", source, items };
+}
+
+/** Build a ProjectionItem. Pure. */
+export function projectionItem(
+  expression: ExpressionNode,
+  outputName: string,
+): ProjectionItem {
+  return { expression, outputName };
 }
 
 /** Build a Where node. Pure. */

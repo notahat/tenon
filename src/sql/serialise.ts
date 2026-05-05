@@ -15,7 +15,12 @@
 // (src/ast/...); fluent wrappers (src/query/...).
 
 import type { ExpressionNode } from "../ast/expression.js";
-import type { OrderTerm, RelationNode, TableRef } from "../ast/relation.js";
+import type {
+  OrderTerm,
+  ProjectionItem,
+  RelationNode,
+  TableRef,
+} from "../ast/relation.js";
 import { quoteIdent } from "./identifier.js";
 import { binarySql, unaryPrefixSql, unarySuffixSql } from "./operators.js";
 
@@ -43,6 +48,7 @@ interface EmitContext {
 
 interface CollectedClauses {
   table: TableRef | null;
+  projectionItems: readonly ProjectionItem[] | null;
   predicates: ExpressionNode[];
   orderTerms: readonly OrderTerm[] | null;
   limit: number | null;
@@ -54,6 +60,13 @@ function collect(node: RelationNode, clauses: CollectedClauses): void {
   switch (node.kind) {
     case "TableRef":
       clauses.table = node;
+      return;
+    case "Project":
+      // Outer wins: only set if not already set by an outer Project.
+      if (clauses.projectionItems === null) {
+        clauses.projectionItems = node.items;
+      }
+      collect(node.source, clauses);
       return;
     case "Where":
       // Predicates are unshifted so source-tree order matches the
@@ -81,6 +94,7 @@ function collect(node: RelationNode, clauses: CollectedClauses): void {
 function emitSelect(node: RelationNode, ctx: EmitContext): string {
   const clauses: CollectedClauses = {
     table: null,
+    projectionItems: null,
     predicates: [],
     orderTerms: null,
     limit: null,
@@ -91,7 +105,10 @@ function emitSelect(node: RelationNode, ctx: EmitContext): string {
     throw new Error("Relation tree has no source table.");
   }
 
-  const parts: string[] = [`SELECT * FROM ${emitTableRef(clauses.table)}`];
+  const selectList = emitSelectList(clauses.projectionItems, ctx);
+  const parts: string[] = [
+    `SELECT ${selectList} FROM ${emitTableRef(clauses.table)}`,
+  ];
   if (clauses.predicates.length > 0) {
     parts.push(`WHERE ${emitPredicates(clauses.predicates, ctx)}`);
   }
@@ -105,6 +122,33 @@ function emitSelect(node: RelationNode, ctx: EmitContext): string {
     parts.push(`OFFSET ${clauses.offset}`);
   }
   return parts.join(" ");
+}
+
+/**
+ * Emit the SELECT list. With no projection, defaults to `*`. With a
+ * projection, each item becomes `<expr> AS "<outputName>"`, omitting
+ * the AS when the output name matches a bare column reference.
+ */
+function emitSelectList(
+  items: readonly ProjectionItem[] | null,
+  ctx: EmitContext,
+): string {
+  if (items === null || items.length === 0) {
+    return "*";
+  }
+  return items.map((item) => emitProjectionItem(item, ctx)).join(", ");
+}
+
+/** Emit a single projection item, with AS only when it would rename. */
+function emitProjectionItem(item: ProjectionItem, ctx: EmitContext): string {
+  const expression = emitExpression(item.expression, ctx);
+  if (
+    item.expression.kind === "ColumnRef" &&
+    item.expression.column === item.outputName
+  ) {
+    return expression;
+  }
+  return `${expression} AS ${quoteIdent(item.outputName)}`;
 }
 
 /** Emit a TableRef as `"schema"."name"` plus an optional `AS "alias"`. */

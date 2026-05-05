@@ -6,6 +6,8 @@
 import { expectTypeOf, test } from "vitest";
 
 import { Expression } from "../../src/query/Expression.js";
+import type { Relation } from "../../src/query/Relation.js";
+import type { RowOf } from "../../src/query/types.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
 
@@ -77,4 +79,43 @@ test("chaining preserves the column accessors on the source table", () => {
   void filtered.id;
   // But the original table still does:
   expectTypeOf(users.id.eq(1)).toEqualTypeOf<Expression<boolean>>();
+});
+
+test("project of a single column produces a row with that column only", () => {
+  const projected = users.project(users.id);
+  expectTypeOf<RowOf<(typeof projected)["_columns"]>>().toEqualTypeOf<{
+    id: number;
+  }>();
+});
+
+test("project of multiple columns produces a row with all of them", () => {
+  const projected = users.project(users.id, users.email);
+  expectTypeOf<RowOf<(typeof projected)["_columns"]>>().toEqualTypeOf<{
+    id: number;
+    email: string;
+  }>();
+});
+
+test("project with `as` alias renames the row key", () => {
+  const projected = users.project(users.id.as("userId"), users.email);
+  expectTypeOf<RowOf<(typeof projected)["_columns"]>>().toEqualTypeOf<{
+    userId: number;
+    email: string;
+  }>();
+});
+
+test("nullable columns widen the row type by | null", () => {
+  const projected = users.project(users.id, users.age);
+  expectTypeOf<RowOf<(typeof projected)["_columns"]>>().toEqualTypeOf<{
+    id: number;
+    age: number | null;
+  }>();
+});
+
+test("project returns a Relation that supports further operators", () => {
+  const projected = users.project(users.id);
+  expectTypeOf(projected).toMatchTypeOf<
+    Relation<{ id: typeof users.id._type }>
+  >();
+  expectTypeOf(projected.limit(1)).toMatchTypeOf<typeof projected>();
 });

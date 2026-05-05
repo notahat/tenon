@@ -19,6 +19,7 @@ import type {
 } from "../ast/expression.js";
 import { orderTerm } from "../ast/relation.js";
 import type { ColumnType } from "../schema-runtime/columnType.js";
+import { AliasedColumn } from "./AliasedColumn.js";
 import { Expression } from "./Expression.js";
 import { Ordering } from "./Ordering.js";
 import type { ComparableTo } from "./types.js";
@@ -97,6 +98,14 @@ export class Column<
   /** Build a descending ordering term referring to this column. */
   desc(): Ordering {
     return new Ordering(orderTerm(this.node, "desc"));
+  }
+
+  /**
+   * Rename this column for projection. The new name becomes a key in
+   * the projected row's static shape.
+   */
+  as<NewName extends string>(name: NewName): AliasedColumn<NewName, Type> {
+    return new AliasedColumn<NewName, Type>(this.node, name);
   }
 
   private compare(
