@@ -1,0 +1,46 @@
+{
+  "name": "trel",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Strongly-typed relational-algebra query library for PostgreSQL.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./schema-runtime": "./dist/schema-runtime/index.js"
+  },
+  "bin": {
+    "trel-generate": "./dist/introspect/bin.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run unit",
+    "test:integration": "vitest run integration",
+    "test:all": "vitest run",
+    "test:watch": "vitest unit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "dependencies": {
+    "pg": "^8.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.11.10",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^2.1.0"
+  }
+}
