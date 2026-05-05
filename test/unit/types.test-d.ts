@@ -1,0 +1,59 @@
+// Type-level tests. Each `@ts-expect-error` line documents a compile
+// error we rely on; if the surrounding code starts compiling, the
+// directive flags the regression. `expectTypeOf` checks positive
+// type-flow expectations.
+
+import { expectTypeOf, test } from "vitest";
+
+import { Expression } from "../../src/query/Expression.js";
+import { columnType } from "../../src/schema-runtime/columnType.js";
+import { defineTable } from "../../src/schema-runtime/defineTable.js";
+
+const users = defineTable("public", "users", {
+  id: columnType<number, "int4">({ nullable: false }),
+  email: columnType<string, "text">({ nullable: false }),
+  age: columnType<number, "int4">({ nullable: true }),
+});
+
+test("comparators accept matching literal types", () => {
+  expectTypeOf(users.id.eq(42)).toEqualTypeOf<Expression<boolean>>();
+  expectTypeOf(users.email.eq("a@b")).toEqualTypeOf<Expression<boolean>>();
+});
+
+test("comparators reject mismatched literal types", () => {
+  // @ts-expect-error number column does not accept a string literal
+  users.id.eq("not a number");
+
+  // @ts-expect-error text column does not accept a number literal
+  users.email.eq(0);
+});
+
+test("eq does not accept null even on nullable columns", () => {
+  // @ts-expect-error use isNull() instead of eq(null)
+  users.age.eq(null);
+
+  // @ts-expect-error non-nullable column also rejects null
+  users.id.eq(null);
+});
+
+test("comparators accept another column of the matching type", () => {
+  expectTypeOf(users.id.eq(users.age)).toEqualTypeOf<Expression<boolean>>();
+});
+
+test("comparators reject another column of a different TS type", () => {
+  // @ts-expect-error number column cannot be compared to text column
+  users.id.eq(users.email);
+});
+
+test("isNull / isNotNull return boolean expressions", () => {
+  expectTypeOf(users.age.isNull()).toEqualTypeOf<Expression<boolean>>();
+  expectTypeOf(users.age.isNotNull()).toEqualTypeOf<Expression<boolean>>();
+});
+
+test("and / or / not chain only on boolean expressions", () => {
+  const a = users.id.eq(1);
+  const b = users.email.eq("a");
+  expectTypeOf(a.and(b)).toEqualTypeOf<Expression<boolean>>();
+  expectTypeOf(a.or(b)).toEqualTypeOf<Expression<boolean>>();
+  expectTypeOf(a.not()).toEqualTypeOf<Expression<boolean>>();
+});
