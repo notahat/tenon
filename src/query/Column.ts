@@ -17,8 +17,10 @@ import type {
   ColumnRef,
   ExpressionNode,
 } from "../ast/expression.js";
+import { orderTerm } from "../ast/relation.js";
 import type { ColumnType } from "../schema-runtime/columnType.js";
 import { Expression } from "./Expression.js";
+import { Ordering } from "./Ordering.js";
 import type { ComparableTo } from "./types.js";
 
 export class Column<
@@ -85,6 +87,16 @@ export class Column<
   in(values: readonly ComparableTo<Type>[]): Expression<boolean> {
     const valueNodes = values.map(toExpressionNode);
     return new Expression<boolean>(inList(this.node, valueNodes));
+  }
+
+  /** Build an ascending ordering term referring to this column. */
+  asc(): Ordering {
+    return new Ordering(orderTerm(this.node, "asc"));
+  }
+
+  /** Build a descending ordering term referring to this column. */
+  desc(): Ordering {
+    return new Ordering(orderTerm(this.node, "desc"));
   }
 
   private compare(

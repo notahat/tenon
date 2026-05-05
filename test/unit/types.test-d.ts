@@ -57,3 +57,24 @@ test("and / or / not chain only on boolean expressions", () => {
   expectTypeOf(a.or(b)).toEqualTypeOf<Expression<boolean>>();
   expectTypeOf(a.not()).toEqualTypeOf<Expression<boolean>>();
 });
+
+test("relation.where requires an Expression<boolean>", () => {
+  // @ts-expect-error a bare Column is not an Expression
+  users.where(users.id);
+
+  // @ts-expect-error a string is not an Expression<boolean>
+  users.where("id = 1");
+});
+
+test("relation.order requires Ordering objects, not bare columns", () => {
+  // @ts-expect-error use users.id.asc() rather than passing the column
+  users.order(users.id);
+});
+
+test("chaining preserves the column accessors on the source table", () => {
+  const filtered = users.where(users.id.eq(1));
+  // @ts-expect-error post-where Relation has no merged column accessors
+  void filtered.id;
+  // But the original table still does:
+  expectTypeOf(users.id.eq(1)).toEqualTypeOf<Expression<boolean>>();
+});

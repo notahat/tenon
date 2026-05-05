@@ -1,10 +1,12 @@
 // Relation-level AST nodes.
 //
-// Relations form the tree the SQL serialiser walks. v1 only models a
-// bare TableRef; further variants (Project, Where, Order, Limit,
-// Offset, joins, set ops, ...) are added in later commits as the
-// fluent layer grows. Out of scope: SQL serialisation (see
+// Relations form the tree the SQL serialiser walks. Each operator
+// (`where`, `order`, `limit`, `offset`) wraps a source relation in an
+// outer node, so the chain `users.where(...).limit(10)` is encoded as
+// Limit -> Where -> TableRef. Out of scope: SQL serialisation (see
 // src/sql/serialise.ts), runtime fluent wrappers (src/query/...).
+
+import type { ExpressionNode } from "./expression.js";
 
 /**
  * A reference to a base table. Always has an alias internally; the
@@ -19,7 +21,40 @@ export interface TableRef {
   readonly alias: string | null;
 }
 
-export type RelationNode = TableRef;
+/** A WHERE filter applied on top of a source relation. */
+export interface Where {
+  readonly kind: "Where";
+  readonly source: RelationNode;
+  readonly predicate: ExpressionNode;
+}
+
+/** An ORDER BY clause. Multiple terms emit in the order given. */
+export interface Order {
+  readonly kind: "Order";
+  readonly source: RelationNode;
+  readonly terms: readonly OrderTerm[];
+}
+
+export interface OrderTerm {
+  readonly expression: ExpressionNode;
+  readonly direction: "asc" | "desc";
+}
+
+/** A LIMIT clause. */
+export interface Limit {
+  readonly kind: "Limit";
+  readonly source: RelationNode;
+  readonly count: number;
+}
+
+/** An OFFSET clause. */
+export interface Offset {
+  readonly kind: "Offset";
+  readonly source: RelationNode;
+  readonly count: number;
+}
+
+export type RelationNode = TableRef | Where | Order | Limit | Offset;
 
 /** Build a TableRef node. Pure. */
 export function tableRef(args: {
@@ -33,4 +68,35 @@ export function tableRef(args: {
     name: args.name,
     alias: args.alias ?? null,
   };
+}
+
+/** Build a Where node. Pure. */
+export function where(source: RelationNode, predicate: ExpressionNode): Where {
+  return { kind: "Where", source, predicate };
+}
+
+/** Build an Order node. Pure. */
+export function order(
+  source: RelationNode,
+  terms: readonly OrderTerm[],
+): Order {
+  return { kind: "Order", source, terms };
+}
+
+/** Build a Limit node. Pure. */
+export function limit(source: RelationNode, count: number): Limit {
+  return { kind: "Limit", source, count };
+}
+
+/** Build an Offset node. Pure. */
+export function offset(source: RelationNode, count: number): Offset {
+  return { kind: "Offset", source, count };
+}
+
+/** Build an OrderTerm. Pure. */
+export function orderTerm(
+  expression: ExpressionNode,
+  direction: "asc" | "desc",
+): OrderTerm {
+  return { expression, direction };
 }
