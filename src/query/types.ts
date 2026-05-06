@@ -78,3 +78,28 @@ export type RowOf<Columns extends ColumnsShape> = {
     ? Columns[Name]["_tsType"] | null
     : Columns[Name]["_tsType"];
 };
+
+/**
+ * Combined columns shape for an inner-joined relation: the union of
+ * both sides' columns, keyed by name. Collisions are caught one level
+ * up (see `OnPredicate`) so this stays a plain `ColumnsShape`-compatible
+ * type and the `Relation<...>` constraint is satisfied unconditionally.
+ */
+export type MergedColumns<
+  L extends ColumnsShape,
+  R extends ColumnsShape,
+> = Readonly<L & R>;
+
+/**
+ * The argument type for `JoinBuilder.on(...)`. When the two sides have
+ * no overlapping column names, this is just `Expression<boolean>`. When
+ * any names collide, an unmatched brand is intersected in so the call
+ * fails at the user's site with the colliding key names visible in the
+ * error message.
+ */
+export type OnPredicate<L extends ColumnsShape, R extends ColumnsShape> =
+  Extract<keyof L & keyof R, string> extends never
+    ? Expression<boolean>
+    : Expression<boolean> & {
+        readonly __trelJoinCollision: `trel: joined tables share columns: ${Extract<keyof L & keyof R, string>}; project(...) to disambiguate`;
+      };

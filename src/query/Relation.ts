@@ -20,6 +20,7 @@ import type { ColumnsShape } from "../schema-runtime/columnType.js";
 import { AliasedColumn } from "./AliasedColumn.js";
 import { Column } from "./Column.js";
 import type { Expression } from "./Expression.js";
+import { JoinBuilder } from "./JoinBuilder.js";
 import type { Ordering } from "./Ordering.js";
 import type { ProjectableItem, ProjectedShape } from "./types.js";
 
@@ -69,6 +70,29 @@ export class Relation<Columns extends ColumnsShape> {
     return new Relation<ProjectedShape<Items>>(
       projectNode(this.node, projectionItems),
     );
+  }
+
+  /**
+   * Inner-join this relation with another defined table. Returns a
+   * builder whose only method is `.on(predicate)`; the join is not
+   * complete until the predicate is supplied.
+   *
+   * The right side is restricted to a `defineTable(...)` value (it
+   * must carry `_tableName` / `_schema`) so v1.5 doesn't have to
+   * commit to a runtime story for joining sub-queries.
+   */
+  innerJoin<RColumns extends ColumnsShape>(
+    right: Relation<RColumns> & {
+      readonly _tableName: string;
+      readonly _schema: string;
+    },
+  ): JoinBuilder<Columns, RColumns> {
+    if (right.node.kind !== "TableRef") {
+      throw new Error(
+        "innerJoin's right side must be a defined table (got a derived relation).",
+      );
+    }
+    return new JoinBuilder<Columns, RColumns>(this.node, right.node);
   }
 }
 

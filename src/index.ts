@@ -11,9 +11,11 @@ export { Relation } from "./query/Relation.js";
 export { Column } from "./query/Column.js";
 export { AliasedColumn } from "./query/AliasedColumn.js";
 export { Expression } from "./query/Expression.js";
+export { JoinBuilder } from "./query/JoinBuilder.js";
 export { Ordering } from "./query/Ordering.js";
 export type {
   ComparableTo,
+  MergedColumns,
   ProjectableItem,
   ProjectedShape,
   RowOf,
