@@ -68,16 +68,24 @@ export type ProjectedShape<Items extends readonly ProjectableItem[]> = {
 };
 
 /**
+ * Force the editor to display an object type as its resolved shape
+ * rather than as a chain of generic aliases. The mapped type is a
+ * structural no-op; the `& {}` intersection prevents TypeScript from
+ * collapsing back to the alias name when rendering tooltips.
+ */
+type Prettify<T> = { [Name in keyof T]: T[Name] } & {};
+
+/**
  * The TS row type produced when executing a Relation<Columns>. Each
  * key is a column name; nullable columns widen by `| null`. The
  * readonly modifier is stripped so the row matches the plain
  * objects node-postgres returns (callers may freely reassign).
  */
-export type RowOf<Columns extends ColumnsShape> = {
+export type RowOf<Columns extends ColumnsShape> = Prettify<{
   -readonly [Name in keyof Columns]: Columns[Name]["nullable"] extends true
     ? Columns[Name]["_tsType"] | null
     : Columns[Name]["_tsType"];
-};
+}>;
 
 /** The set of column names shared between two columns shapes. */
 export type DuplicateColumnNames<L, R> = Extract<keyof L & keyof R, string>;
