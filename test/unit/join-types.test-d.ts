@@ -4,11 +4,14 @@
 
 import { expectTypeOf, test } from "vitest";
 
+import type { Database } from "../../src/executor/Database.js";
 import { JoinBuilder } from "../../src/query/JoinBuilder.js";
 import { Relation } from "../../src/query/Relation.js";
 import type { RowOf } from "../../src/query/types.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
+
+declare const db: Database;
 
 const users = defineTable("public", "users", {
   id: columnType<number, "int4">({ nullable: false }),
@@ -86,7 +89,25 @@ test("innerJoin requires a defined table on the right", () => {
   users.innerJoin(filteredPosts);
 });
 
-test("colliding column names produce a compile error at the call site", () => {
-  // @ts-expect-error users and teams both expose `id`
-  users.innerJoin(teams).on(users.id.eq(teams.id));
+test("joins between tables sharing a column name typecheck at .on()", () => {
+  // users and teams both have `id`; the predicate compiles fine.
+  const joined = users.innerJoin(teams).on(users.id.eq(teams.id));
+  // .where on the merged relation also compiles, even with the
+  // duplicate column hanging around in the merged shape.
+  void joined.where(users.email.eq("a@b"));
+});
+
+test("db.run rejects a joined relation with duplicate column names", () => {
+  const joined = users.innerJoin(teams).on(users.id.eq(teams.id));
+  // @ts-expect-error duplicate `id` in the merged shape: must project first
+  void db.run(joined);
+});
+
+test(".project clears the duplicate-column brand so db.run accepts it", () => {
+  const projected = users
+    .innerJoin(teams)
+    .on(users.id.eq(teams.id))
+    .project(users.email, teams.name);
+  // Projection narrows to a fresh shape with no duplicate keys.
+  void db.run(projected);
 });

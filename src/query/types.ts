@@ -79,27 +79,21 @@ export type RowOf<Columns extends ColumnsShape> = {
     : Columns[Name]["_tsType"];
 };
 
-/**
- * Combined columns shape for an inner-joined relation: the union of
- * both sides' columns, keyed by name. Collisions are caught one level
- * up (see `OnPredicate`) so this stays a plain `ColumnsShape`-compatible
- * type and the `Relation<...>` constraint is satisfied unconditionally.
- */
-export type MergedColumns<
-  L extends ColumnsShape,
-  R extends ColumnsShape,
-> = Readonly<L & R>;
+/** The set of column names shared between two columns shapes. */
+export type DuplicateColumnNames<L, R> = Extract<keyof L & keyof R, string>;
 
 /**
- * The argument type for `JoinBuilder.on(...)`. When the two sides have
- * no overlapping column names, this is just `Expression<boolean>`. When
- * any names collide, an unmatched brand is intersected in so the call
- * fails at the user's site with the colliding key names visible in the
- * error message.
+ * Combined columns shape for an inner-joined relation: the union of
+ * both sides' columns, keyed by name. When the two sides share any
+ * column names, an unmatched brand is intersected in. The brand
+ * propagates through `.where` / `.order` and is only rejected at
+ * `Database.run`; `.project(...)` returns a fresh shape that drops it.
+ * The brand's literal-template message names the offending columns so
+ * the run-site error tells the user exactly what to project.
  */
-export type OnPredicate<L extends ColumnsShape, R extends ColumnsShape> =
-  Extract<keyof L & keyof R, string> extends never
-    ? Expression<boolean>
-    : Expression<boolean> & {
-        readonly __trelJoinCollision: `trel: joined tables share columns: ${Extract<keyof L & keyof R, string>}; project(...) to disambiguate`;
+export type MergedColumns<L extends ColumnsShape, R extends ColumnsShape> =
+  DuplicateColumnNames<L, R> extends never
+    ? Readonly<L & R>
+    : Readonly<L & R> & {
+        readonly __trelDuplicateColumns: `trel: joined relation has duplicate columns: ${DuplicateColumnNames<L, R>}; project(...) before db.run, or as(...) one side before joining`;
       };

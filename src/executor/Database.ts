@@ -31,9 +31,16 @@ export class Database {
    * widen by `| null`. Pass `client` to route through a specific
    * pooled client (e.g. one already inside a caller-managed
    * transaction).
+   *
+   * Relations whose columns shape has duplicate column names (carrying
+   * the `__trelDuplicateColumns` brand from a join) are rejected at
+   * compile time. Project before running, or alias one side via
+   * `Table.as(...)` before joining.
    */
   async run<Columns extends ColumnsShape>(
-    query: Relation<Columns>,
+    query: Relation<Columns> & {
+      readonly _columns: { readonly __trelDuplicateColumns?: never };
+    },
     client?: PoolClient,
   ): Promise<RowOf<Columns>[]> {
     const compiled = relationToSql(query.node);

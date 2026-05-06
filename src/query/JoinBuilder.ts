@@ -11,8 +11,9 @@
 import { innerJoin as innerJoinNode } from "../ast/relation.js";
 import type { RelationNode, TableRef } from "../ast/relation.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
+import type { Expression } from "./Expression.js";
 import { Relation } from "./Relation.js";
-import type { MergedColumns, OnPredicate } from "./types.js";
+import type { MergedColumns } from "./types.js";
 
 /** Holds the left-hand side and right-hand table while waiting for `.on()`. */
 export class JoinBuilder<
@@ -30,13 +31,13 @@ export class JoinBuilder<
   ) {}
 
   /**
-   * Complete the inner join with a boolean predicate. If the two
-   * sides have any overlapping column names, the call fails to
-   * compile (see `OnPredicate`); disambiguate with `.project(...)`.
+   * Complete the inner join with a boolean predicate. Predicates may
+   * freely reference columns from either side, including those whose
+   * names overlap. If the merged columns shape has duplicates, the
+   * resulting Relation carries a brand that fails at `Database.run`;
+   * `.project(...)` clears it.
    */
-  on(
-    predicate: OnPredicate<Left, Right>,
-  ): Relation<MergedColumns<Left, Right>> {
+  on(predicate: Expression<boolean>): Relation<MergedColumns<Left, Right>> {
     return new Relation<MergedColumns<Left, Right>>(
       innerJoinNode(this.leftSource, this.rightTable, predicate.node),
     );
