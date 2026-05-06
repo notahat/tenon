@@ -15,7 +15,7 @@ afterAll(async () => {
 
 describe("INNER JOIN end-to-end", () => {
   it("joins two tables that share a column name once .project disambiguates", async () => {
-    await withTestSchema("trel_join_shared", async (schema) => {
+    await withTestSchema("tenon_join_shared", async (schema) => {
       const client = await sharedPool.connect();
       try {
         await client.query(
@@ -73,7 +73,7 @@ describe("INNER JOIN end-to-end", () => {
   });
 
   it("returns rows from a self-join via Table.as(alias)", async () => {
-    await withTestSchema("trel_join_self", async (schema) => {
+    await withTestSchema("tenon_join_self", async (schema) => {
       const client = await sharedPool.connect();
       try {
         await client.query(
@@ -120,7 +120,7 @@ describe("INNER JOIN end-to-end", () => {
   });
 
   it("returns rows from both tables with a precise projected row type", async () => {
-    await withTestSchema("trel_join", async (schema) => {
+    await withTestSchema("tenon_join", async (schema) => {
       const client = await sharedPool.connect();
       try {
         await client.query(

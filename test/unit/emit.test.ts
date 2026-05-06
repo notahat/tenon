@@ -20,7 +20,7 @@ describe("emitSchemaFile", () => {
       column("public", "users", "id", "int4", false, 1),
     ]);
     expect(output).toContain(
-      `import { columnType, defineTable } from "trel/schema-runtime";`,
+      `import { columnType, defineTable } from "@notahat/tenon/schema-runtime";`,
     );
   });
 

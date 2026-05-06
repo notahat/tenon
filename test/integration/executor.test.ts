@@ -15,7 +15,7 @@ afterAll(async () => {
 
 describe("Database.run end-to-end", () => {
   it("returns all rows with full-column row types when no project is used", async () => {
-    await withTestSchema("trel_executor", async (schema) => {
+    await withTestSchema("tenon_executor", async (schema) => {
       const client = await sharedPool.connect();
       try {
         await client.query(
@@ -54,7 +54,7 @@ describe("Database.run end-to-end", () => {
   });
 
   it("filters with where and emits parameters in order", async () => {
-    await withTestSchema("trel_executor", async (schema) => {
+    await withTestSchema("tenon_executor", async (schema) => {
       const client = await sharedPool.connect();
       try {
         await client.query(
@@ -85,7 +85,7 @@ describe("Database.run end-to-end", () => {
   });
 
   it("narrows the row shape when project is used", async () => {
-    await withTestSchema("trel_executor", async (schema) => {
+    await withTestSchema("tenon_executor", async (schema) => {
       const client = await sharedPool.connect();
       try {
         await client.query(

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// CLI entry point for `trel-generate`. Parses three flags and
+// CLI entry point for `tenon-generate`. Parses three flags and
 // delegates to generateSchema. Kept minimal: no config file, no
 // inclusion / exclusion filters beyond the schema list. Add
 // surface area only when a second consumer requests it.
 
 import { generateSchema } from "./generate.js";
 
-const USAGE = `Usage: trel-generate \\
+const USAGE = `Usage: tenon-generate \\
   --database-url <postgres-url> \\
   [--schemas public[,other]] \\
   --output <path-to.ts>

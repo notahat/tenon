@@ -1,4 +1,4 @@
-// Public entry for `trel/schema-runtime`. Imported by generated
+// Public entry for `@notahat/tenon/schema-runtime`. Imported by generated
 // schema files; no other consumer should need this subpath.
 
 export { columnType } from "./columnType.js";

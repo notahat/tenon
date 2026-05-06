@@ -33,13 +33,13 @@ export class Database {
    * transaction).
    *
    * Relations whose columns shape has duplicate column names (carrying
-   * the `__trelDuplicateColumns` brand from a join) are rejected at
+   * the `__tenonDuplicateColumns` brand from a join) are rejected at
    * compile time. Project before running, or alias one side via
    * `Table.as(...)` before joining.
    */
   async run<Columns extends ColumnsShape>(
     query: Relation<Columns> & {
-      readonly _columns: { readonly __trelDuplicateColumns?: never };
+      readonly _columns: { readonly __tenonDuplicateColumns?: never };
     },
     client?: PoolClient,
   ): Promise<RowOf<Columns>[]> {

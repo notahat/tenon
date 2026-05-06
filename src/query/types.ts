@@ -103,5 +103,5 @@ export type MergedColumns<L extends ColumnsShape, R extends ColumnsShape> =
   DuplicateColumnNames<L, R> extends never
     ? Readonly<L & R>
     : Readonly<L & R> & {
-        readonly __trelDuplicateColumns: `trel: joined relation has duplicate columns: ${DuplicateColumnNames<L, R>}; project(...) before db.run, or as(...) one side before joining`;
+        readonly __tenonDuplicateColumns: `tenon: joined relation has duplicate columns: ${DuplicateColumnNames<L, R>}; project(...) before db.run, or as(...) one side before joining`;
       };

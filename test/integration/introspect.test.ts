@@ -22,7 +22,7 @@ afterAll(async () => {
 
 describe("generateSchema", () => {
   it("emits defineTable blocks for every table in the requested schema", async () => {
-    await withTestSchema("trel_introspect", async (schema) => {
+    await withTestSchema("tenon_introspect", async (schema) => {
       const client = await sharedPool.connect();
       try {
         await client.query(
@@ -44,7 +44,7 @@ describe("generateSchema", () => {
         client.release();
       }
 
-      const tempDir = await mkdtemp(join(tmpdir(), "trel-test-"));
+      const tempDir = await mkdtemp(join(tmpdir(), "tenon-test-"));
       const outputPath = join(tempDir, "schema.ts");
       try {
         await generateSchema({
@@ -55,7 +55,7 @@ describe("generateSchema", () => {
         const file = await readFile(outputPath, "utf8");
 
         expect(file).toContain(
-          `import { columnType, defineTable } from "trel/schema-runtime";`,
+          `import { columnType, defineTable } from "@notahat/tenon/schema-runtime";`,
         );
         expect(file).toContain(
           `export const users = defineTable("${schema}", "users", {`,

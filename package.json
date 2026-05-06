@@ -1,5 +1,5 @@
 {
-  "name": "trel",
+  "name": "@notahat/tenon",
   "version": "0.0.0",
   "private": true,
   "description": "Strongly-typed relational-algebra query library for PostgreSQL.",
@@ -12,7 +12,7 @@
     "./schema-runtime": "./dist/schema-runtime/index.js"
   },
   "bin": {
-    "trel-generate": "./dist/introspect/bin.js"
+    "tenon-generate": "./dist/introspect/bin.js"
   },
   "files": [
     "dist",
