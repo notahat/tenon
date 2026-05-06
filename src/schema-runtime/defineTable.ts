@@ -16,27 +16,37 @@ import type { ColumnType, ColumnsShape } from "./columnType.js";
 
 /**
  * The shape of a defined table: a Relation with column accessors
- * merged in. The TableName literal type is preserved so future joins
- * can keep references qualified.
+ * merged in. The `Alias` parameter is the qualifier used in column
+ * references and (when not equal to the physical name) in
+ * `FROM ... AS ...`. After `defineTable` it equals the table name;
+ * after `.as("u")` it carries the user-supplied alias.
  */
 export type Table<
-  TableName extends string,
+  Alias extends string,
   Columns extends ColumnsShape,
 > = Relation<Columns> &
   Readonly<{
-    _tableName: TableName;
+    _tableName: Alias;
     _schema: string;
   }> & {
     readonly [Name in keyof Columns & string]: Column<
-      TableName,
+      Alias,
       Name,
       Columns[Name]
     >;
+  } & {
+    /**
+     * Re-alias this table for use in joins. The returned Table shares
+     * the same physical schema and name but qualifies its columns by
+     * the new alias, so the same physical table can appear twice in
+     * one query (self-joins, plus column-name disambiguation).
+     */
+    as<NewAlias extends string>(alias: NewAlias): Table<NewAlias, Columns>;
   };
 
 /**
  * Define a table. The default alias for column qualification is the
- * table name itself; future joins may reassign it via a `.as` helper.
+ * table name itself; rename it for joins via `.as("u")`.
  */
 export function defineTable<
   TableName extends string,
@@ -46,17 +56,39 @@ export function defineTable<
   name: TableName,
   columns: Columns,
 ): Table<TableName, Columns> {
-  const relation = new Relation<Columns>(tableRef({ schema, name }));
+  return buildTable(schema, name, name, columns) as Table<TableName, Columns>;
+}
+
+/**
+ * Construct a Table for the given physical (schema, name) under the
+ * given column-qualification alias. Shared between `defineTable` (where
+ * the alias defaults to the table name) and `Table.as` (where the user
+ * picks the alias).
+ */
+function buildTable<Alias extends string, Columns extends ColumnsShape>(
+  schema: string,
+  name: string,
+  alias: Alias,
+  columns: Columns,
+): Table<Alias, Columns> {
+  const node =
+    alias === name
+      ? tableRef({ schema, name })
+      : tableRef({ schema, name, alias });
+  const relation = new Relation<Columns>(node);
   const accessors: Record<
     string,
     Column<string, string, ColumnType<unknown, string, boolean>>
   > = {};
   for (const columnName of Object.keys(columns)) {
-    accessors[columnName] = new Column(name, columnName);
+    accessors[columnName] = new Column(alias, columnName);
   }
   Object.assign(relation, accessors, {
-    _tableName: name,
+    _tableName: alias,
     _schema: schema,
+    as<NewAlias extends string>(newAlias: NewAlias): Table<NewAlias, Columns> {
+      return buildTable(schema, name, newAlias, columns);
+    },
   });
-  return relation as Table<TableName, Columns>;
+  return relation as Table<Alias, Columns>;
 }

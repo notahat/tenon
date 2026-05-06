@@ -14,6 +14,111 @@ afterAll(async () => {
 });
 
 describe("INNER JOIN end-to-end", () => {
+  it("joins two tables that share a column name once .project disambiguates", async () => {
+    await withTestSchema("trel_join_shared", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."users" (
+             id integer NOT NULL,
+             email text NOT NULL
+           )`,
+        );
+        await client.query(
+          `CREATE TABLE "${schema}"."teams" (
+             id integer NOT NULL,
+             name text NOT NULL,
+             owner_id integer NOT NULL
+           )`,
+        );
+        await client.query(
+          `INSERT INTO "${schema}"."users" (id, email) VALUES
+             (1, 'a@example.com'),
+             (2, 'b@example.com')`,
+        );
+        await client.query(
+          `INSERT INTO "${schema}"."teams" (id, name, owner_id) VALUES
+             (10, 'engineering', 1),
+             (11, 'sales', 2)`,
+        );
+      } finally {
+        client.release();
+      }
+
+      const users = defineTable(schema, "users", {
+        id: columnType<number, "int4">({ nullable: false }),
+        email: columnType<string, "text">({ nullable: false }),
+      });
+      const teams = defineTable(schema, "teams", {
+        id: columnType<number, "int4">({ nullable: false }),
+        name: columnType<string, "text">({ nullable: false }),
+        owner_id: columnType<number, "int4">({ nullable: false }),
+      });
+      const db = new Database(sharedPool);
+
+      const rows = await db.run(
+        users
+          .innerJoin(teams)
+          .on(users.id.eq(teams.owner_id))
+          .order(users.id.asc())
+          .project(users.email, teams.name),
+      );
+
+      expectTypeOf(rows).toEqualTypeOf<{ email: string; name: string }[]>();
+      expect(rows).toEqual([
+        { email: "a@example.com", name: "engineering" },
+        { email: "b@example.com", name: "sales" },
+      ]);
+    });
+  });
+
+  it("returns rows from a self-join via Table.as(alias)", async () => {
+    await withTestSchema("trel_join_self", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."users" (
+             id integer NOT NULL,
+             email text NOT NULL,
+             manager_id integer
+           )`,
+        );
+        await client.query(
+          `INSERT INTO "${schema}"."users" (id, email, manager_id) VALUES
+             (1, 'boss@example.com', NULL),
+             (2, 'a@example.com', 1),
+             (3, 'b@example.com', 1)`,
+        );
+      } finally {
+        client.release();
+      }
+
+      const users = defineTable(schema, "users", {
+        id: columnType<number, "int4">({ nullable: false }),
+        email: columnType<string, "text">({ nullable: false }),
+        manager_id: columnType<number, "int4">({ nullable: true }),
+      });
+      const manager = users.as("manager");
+      const db = new Database(sharedPool);
+
+      const rows = await db.run(
+        users
+          .innerJoin(manager)
+          .on(users.manager_id.eq(manager.id))
+          .order(users.id.asc())
+          .project(users.email, manager.email.as("manager_email")),
+      );
+
+      expectTypeOf(rows).toEqualTypeOf<
+        { email: string; manager_email: string }[]
+      >();
+      expect(rows).toEqual([
+        { email: "a@example.com", manager_email: "boss@example.com" },
+        { email: "b@example.com", manager_email: "boss@example.com" },
+      ]);
+    });
+  });
+
   it("returns rows from both tables with a precise projected row type", async () => {
     await withTestSchema("trel_join", async (schema) => {
       const client = await sharedPool.connect();
