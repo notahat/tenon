@@ -292,6 +292,21 @@ readonly ...[]>` (TS 5+) to keep tuple types narrow. Verify with
   generated comment. v2 escape hatch: user-registered parsers.
 - **Connection lifecycle.** `Database` does not own the pool. Document.
 
+## Post-v1 cleanups noted during implementation
+
+Concrete debt items observed while building v1; none block shipping.
+
+- **`Where` predicate collection in the serialiser uses `Array.unshift`**
+  to keep source-tree order, which is O(n²) for long chains of `.where`
+  calls. Acceptable at v1 scale; flatten with a reverse-walk + push if
+  realistic queries ever stack dozens of `.where`s.
+- **`generate.ts` passes a `pg.Client` to `readCatalog` whose parameter
+  is typed as `QueryRunner`.** It works structurally (Client, Pool, and
+  PoolClient all expose a compatible `query` method), but a tighter
+  `QueryRunner` interface that all three are explicitly assignable to —
+  or a small adapter — would remove the need to lean on TS's structural
+  matching. Same shape exists in `src/executor/Database.ts`.
+
 ## Deferred (post-v1)
 
 - Joins (`innerJoin`, `leftJoin`, …) — type plumbing already accommodates.
