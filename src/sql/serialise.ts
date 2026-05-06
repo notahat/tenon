@@ -46,8 +46,15 @@ interface EmitContext {
   readonly params: unknown[];
 }
 
+interface CollectedJoin {
+  readonly kind: "inner";
+  readonly right: TableRef;
+  readonly on: ExpressionNode;
+}
+
 interface CollectedClauses {
   table: TableRef | null;
+  joins: CollectedJoin[];
   projectionItems: readonly ProjectionItem[] | null;
   predicates: ExpressionNode[];
   orderTerms: readonly OrderTerm[] | null;
@@ -87,6 +94,17 @@ function collect(node: RelationNode, clauses: CollectedClauses): void {
       if (clauses.offset === null) clauses.offset = node.count;
       collect(node.source, clauses);
       return;
+    case "InnerJoin":
+      // Joins are unshifted so the deepest (leftmost) join in the
+      // source tree emits first, matching the user's chaining order:
+      // a.innerJoin(b).innerJoin(c) emits `a JOIN b JOIN c`.
+      clauses.joins.unshift({
+        kind: "inner",
+        right: node.right,
+        on: node.on,
+      });
+      collect(node.source, clauses);
+      return;
   }
 }
 
@@ -94,6 +112,7 @@ function collect(node: RelationNode, clauses: CollectedClauses): void {
 function emitSelect(node: RelationNode, ctx: EmitContext): string {
   const clauses: CollectedClauses = {
     table: null,
+    joins: [],
     projectionItems: null,
     predicates: [],
     orderTerms: null,
@@ -109,6 +128,9 @@ function emitSelect(node: RelationNode, ctx: EmitContext): string {
   const parts: string[] = [
     `SELECT ${selectList} FROM ${emitTableRef(clauses.table)}`,
   ];
+  for (const join of clauses.joins) {
+    parts.push(emitJoin(join, ctx));
+  }
   if (clauses.predicates.length > 0) {
     parts.push(`WHERE ${emitPredicates(clauses.predicates, ctx)}`);
   }
@@ -149,6 +171,11 @@ function emitProjectionItem(item: ProjectionItem, ctx: EmitContext): string {
     return expression;
   }
   return `${expression} AS ${quoteIdent(item.outputName)}`;
+}
+
+/** Emit a single join clause: `INNER JOIN <table> ON <expr>`. */
+function emitJoin(join: CollectedJoin, ctx: EmitContext): string {
+  return `INNER JOIN ${emitTableRef(join.right)} ON ${emitExpression(join.on, ctx)}`;
 }
 
 /** Emit a TableRef as `"schema"."name"` plus an optional `AS "alias"`. */

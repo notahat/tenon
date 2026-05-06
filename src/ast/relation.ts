@@ -66,7 +66,26 @@ export interface Offset {
   readonly count: number;
 }
 
-export type RelationNode = TableRef | Project | Where | Order | Limit | Offset;
+/**
+ * An INNER JOIN. The left side (`source`) is the existing relation —
+ * it may already carry where/order/limit/offset/project. The right side
+ * is restricted to a TableRef in v1.5; joining a sub-query is deferred.
+ */
+export interface InnerJoin {
+  readonly kind: "InnerJoin";
+  readonly source: RelationNode;
+  readonly right: TableRef;
+  readonly on: ExpressionNode;
+}
+
+export type RelationNode =
+  | TableRef
+  | Project
+  | Where
+  | Order
+  | Limit
+  | Offset
+  | InnerJoin;
 
 /** Build a TableRef node. Pure. */
 export function tableRef(args: {
@@ -127,4 +146,13 @@ export function orderTerm(
   direction: "asc" | "desc",
 ): OrderTerm {
   return { expression, direction };
+}
+
+/** Build an InnerJoin node. Pure. */
+export function innerJoin(
+  source: RelationNode,
+  right: TableRef,
+  on: ExpressionNode,
+): InnerJoin {
+  return { kind: "InnerJoin", source, right, on };
 }
