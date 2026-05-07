@@ -1,22 +1,23 @@
 // AST -> SQL serialiser.
 //
-// Pure: takes a RelationNode (SELECT) or InsertNode tree, returns
-// { text, params }. The text is parameterised SQL using $1, $2, ...
-// placeholders compatible with node-postgres. The params array is in
-// the order the placeholders appear in the text.
+// Pure: takes a RelationNode (SELECT), InsertNode, or DeleteNode tree,
+// returns { text, params }. The text is parameterised SQL using $1,
+// $2, ... placeholders compatible with node-postgres. The params array
+// is in the order the placeholders appear in the text.
 //
 // Strategy: walk the relation tree once to collect clauses (FROM,
 // WHEREs, ORDER BY terms, LIMIT, OFFSET), then emit them in canonical
 // SQL order. Expressions are emitted recursively, threading
 // parameters through a single EmitContext so placeholder numbering is
 // always left-to-right and tree transforms never need to renumber.
-// `insertToSql` shares the same EmitContext and `emitExpression`, so
-// parameter numbering is consistent for the (eventual) case where an
-// INSERT carries parameter-bearing expressions.
+// `insertToSql` and `deleteToSql` share the same EmitContext and
+// helpers, so parameter numbering is consistent across all three
+// statement categories.
 //
 // Out of scope: query execution (src/executor/...); AST construction
 // (src/ast/...); fluent wrappers (src/query/...).
 
+import type { DeleteNode } from "../ast/delete.js";
 import type { ExpressionNode } from "../ast/expression.js";
 import type { InsertNode } from "../ast/insert.js";
 import type {
@@ -45,6 +46,13 @@ export function relationToSql(node: RelationNode): CompiledQuery {
 export function insertToSql(node: InsertNode): CompiledQuery {
   const context: EmitContext = { params: [] };
   const text = emitInsert(node, context);
+  return { text, params: context.params };
+}
+
+/** Serialise a Delete tree to a parameterised SQL DELETE. */
+export function deleteToSql(node: DeleteNode): CompiledQuery {
+  const context: EmitContext = { params: [] };
+  const text = emitDelete(node, context);
   return { text, params: context.params };
 }
 
@@ -263,6 +271,37 @@ function emitInsertValues(
   return columnValues
     .map((columnValue) => emitExpression(columnValue.value, context))
     .join(", ");
+}
+
+/**
+ * Build a DELETE statement: `DELETE FROM "schema"."name" [AS "alias"]
+ * [WHERE ...] [RETURNING ...]`. Unlike INSERT, the target's alias is
+ * preserved on emit — predicates qualify columns by the same alias, so
+ * dropping it would produce broken SQL when the user calls
+ * `Table.as(...)` before deleting.
+ *
+ * Throws if the predicate list is empty and `allowEmptyPredicates` is
+ * off. Only `Table.deleteAll()` flips the flag on; `Table.delete()`
+ * leaves it off so an accidental `db.run(users.delete())` fails before
+ * a round-trip.
+ */
+function emitDelete(node: DeleteNode, context: EmitContext): string {
+  if (node.predicates.length === 0 && !node.allowEmptyPredicates) {
+    throw new Error(
+      "DELETE without a WHERE clause is forbidden. " +
+        "Call Table.deleteAll() if you really mean to wipe every row.",
+    );
+  }
+  const target = emitTableRef(node.target);
+  const where =
+    node.predicates.length > 0
+      ? ` WHERE ${emitPredicates(node.predicates, context)}`
+      : "";
+  const returning =
+    node.returning === null
+      ? ""
+      : ` RETURNING ${emitSelectList(node.returning, context)}`;
+  return `DELETE FROM ${target}${where}${returning}`;
 }
 
 /** Recursively emit an expression node, appending any parameters. */
