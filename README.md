@@ -48,6 +48,27 @@ const result = await db.run(
   users.insert({ email: "two@notahat.com", active: true }),
 );
 //    ^? { rowCount: number }
+
+// Delete via a where-narrowed scope: chained predicates AND together,
+// .returning(...) pulls the deleted rows back, and only .where keeps
+// the scope alive (.order/.limit/.project widen back to Relation and
+// drop .delete).
+const removed = await db.run(
+  users
+    .where(users.email.eq("pete@notahat.com"))
+    .where(users.active.eq(true))
+    .delete()
+    .returning(users.id, users.email),
+);
+//    ^? Array<{ id: number; email: string }>
+
+// Delete without RETURNING resolves to a row count.
+const cleared = await db.run(users.where(users.active.eq(false)).delete());
+//    ^? { rowCount: number }
+
+// Wiping every row is opt-in: bare `users.delete()` throws before any
+// SQL is sent. Use `users.deleteAll()` to actually clear the table.
+await db.run(users.deleteAll());
 ```
 
 ## Current scope
@@ -56,7 +77,11 @@ const result = await db.run(
   `innerJoin ... on`. Tables expose `.as(alias)` for renaming (enables
   self-joins and disambiguation).
 - Write operators: single-row `Table.insert(attrs)` with optional
-  `.returning(...)`.
+  `.returning(...)`. `Table.where(...).delete()` for predicate-narrowed
+  DELETE (chained `.where` ANDs together; `.returning(...)` pulls back
+  the deleted rows). `Table.deleteAll()` is the explicit "wipe every
+  row" form; bare `Table.delete()` throws at serialisation rather than
+  silently emitting a no-WHERE DELETE.
 - PostgreSQL only, via [`pg`](https://www.npmjs.com/package/pg).
 - Schema generated from a live database via the `tenon-generate` CLI.
   The introspector reads `nullable`, `hasDefault` (DEFAULT clauses and
@@ -73,9 +98,10 @@ const result = await db.run(
 
 Outer joins (`leftJoin` / `rightJoin` / `fullJoin`), aggregates and
 `group by`, set operations, sub-queries / CTEs, multi-row inserts,
-`ON CONFLICT`, `UPDATE`, `DELETE`, transactions, and streaming are not
-yet implemented. The AST and type plumbing are designed to absorb them
-without breaking changes.
+`ON CONFLICT`, `UPDATE`, `DELETE ... USING`, the Rails-style
+`Table.where(...).insert(attrs)` chain, transactions, and streaming
+are not yet implemented. The AST and type plumbing are designed to
+absorb them without breaking changes.
 
 ## Type-mapping notes (worth knowing up front)
 
