@@ -9,9 +9,13 @@
 // Out of scope: introspection / code generation (src/introspect/...);
 // per-row TS types (those flow from the columns map's element types).
 
+import { insertColumnValue, insertNode } from "../ast/insert.js";
+import { parameter } from "../ast/expression.js";
 import { tableRef } from "../ast/relation.js";
 import { Column } from "../query/Column.js";
+import { Insert } from "../query/Insert.js";
 import { Relation } from "../query/Relation.js";
+import type { InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
 
 /**
@@ -42,6 +46,14 @@ export type Table<
      * one query (self-joins, plus column-name disambiguation).
      */
     as<NewAlias extends string>(alias: NewAlias): Table<NewAlias, Columns>;
+    /**
+     * Build an INSERT against this table. Required keys (NOT NULL, no
+     * DEFAULT, not generated) must be supplied; nullable keys and keys
+     * with defaults are optional; generated columns are absent from
+     * the attrs type entirely. Chain `.returning(...)` to read inserted
+     * rows; without it, `db.run(...)` resolves to `{ rowCount }`.
+     */
+    insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null>;
   };
 
 /**
@@ -92,6 +104,15 @@ function buildTable<Alias extends string, Columns extends ColumnsShape>(
     _schema: schema,
     as<NewAlias extends string>(newAlias: NewAlias): Table<NewAlias, Columns> {
       return buildTable(schema, name, newAlias, columns);
+    },
+    insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null> {
+      const columnValues = Object.entries(attrs as Record<string, unknown>).map(
+        ([columnName, value]) =>
+          insertColumnValue(columnName, parameter(value)),
+      );
+      return new Insert<Columns, null>(
+        insertNode({ target: node, columnValues }),
+      );
     },
   });
   return relation as Table<Alias, Columns>;

@@ -12,12 +12,14 @@ export { Relation } from "./query/Relation.js";
 export { Column } from "./query/Column.js";
 export { AliasedColumn } from "./query/AliasedColumn.js";
 export { Expression } from "./query/Expression.js";
+export { Insert } from "./query/Insert.js";
 export { JoinBuilder } from "./query/JoinBuilder.js";
 export { Ordering } from "./query/Ordering.js";
 export { scope } from "./query/scope.js";
 export type { Scope } from "./query/scope.js";
 export type {
   ComparableTo,
+  InsertableAttrs,
   MergedColumns,
   ProjectableItem,
   ProjectedShape,

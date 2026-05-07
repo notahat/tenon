@@ -117,3 +117,50 @@ export type MergedColumns<L extends ColumnsShape, R extends ColumnsShape> =
     : Readonly<L & R> & {
         readonly __tenonDuplicateColumns: `tenon: joined relation has duplicate columns: ${DuplicateColumnNames<L, R>}; project(...) before db.run, or as(...) one side before joining`;
       };
+
+/**
+ * Names of columns the user must supply to `.insert(...)`: NOT NULL,
+ * no DEFAULT, not generated. Generated columns are filtered out
+ * earlier; nullable / has-default keys are filtered to the optional
+ * map below.
+ */
+type RequiredInsertKeys<Columns extends ColumnsShape> = {
+  [Name in keyof Columns]: Columns[Name]["isGenerated"] extends true
+    ? never
+    : Columns[Name]["nullable"] extends true
+      ? never
+      : Columns[Name]["hasDefault"] extends true
+        ? never
+        : Name;
+}[keyof Columns];
+
+/**
+ * Names of columns the user may omit from `.insert(...)`: nullable or
+ * has a DEFAULT, but not generated.
+ */
+type OptionalInsertKeys<Columns extends ColumnsShape> = {
+  [Name in keyof Columns]: Columns[Name]["isGenerated"] extends true
+    ? never
+    : Columns[Name]["nullable"] extends true
+      ? Name
+      : Columns[Name]["hasDefault"] extends true
+        ? Name
+        : never;
+}[keyof Columns];
+
+/**
+ * The TS shape `.insert(attrs)` accepts. Required keys: NOT NULL, no
+ * DEFAULT, not generated. Optional keys: nullable OR has DEFAULT.
+ * Generated columns are absent — supplying one is a "no such property"
+ * error. Nullable columns also accept `null`; non-nullable optional
+ * columns (those with defaults) do not.
+ */
+export type InsertableAttrs<Columns extends ColumnsShape> = Prettify<
+  {
+    [Name in RequiredInsertKeys<Columns>]: Columns[Name]["_tsType"];
+  } & {
+    [Name in OptionalInsertKeys<Columns>]?: Columns[Name]["nullable"] extends true
+      ? Columns[Name]["_tsType"] | null
+      : Columns[Name]["_tsType"];
+  }
+>;

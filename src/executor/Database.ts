@@ -1,4 +1,5 @@
-// Thin wrapper around a node-postgres pool that runs typed Relations.
+// Thin wrapper around a node-postgres pool that runs typed Relations
+// and Inserts.
 //
 // Database does NOT own the lifecycle of the pool it is handed; the
 // caller is responsible for `pool.end()`. A single pooled client may
@@ -11,14 +12,18 @@
 
 import type { Pool, PoolClient } from "pg";
 
+import { Insert } from "../query/Insert.js";
 import type { Relation } from "../query/Relation.js";
 import type { RowOf } from "../query/types.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
-import { relationToSql } from "../sql/serialise.js";
+import { insertToSql, relationToSql } from "../sql/serialise.js";
 
 /** A query runner accepted by `Database.run`. Both pg.Pool and pg.PoolClient match. */
 interface QueryRunner {
-  query(text: string, values: readonly unknown[]): Promise<{ rows: unknown[] }>;
+  query(
+    text: string,
+    values: readonly unknown[],
+  ): Promise<{ rows: unknown[]; rowCount: number | null }>;
 }
 
 export class Database {
@@ -36,15 +41,35 @@ export class Database {
    * compile time. Project before running, or alias one side via
    * `Table.as(...)` before joining.
    */
-  async run<Columns extends ColumnsShape>(
+  run<Columns extends ColumnsShape, Returning extends ColumnsShape>(
+    insert: Insert<Columns, Returning>,
+    client?: PoolClient,
+  ): Promise<RowOf<Returning>[]>;
+  run<Columns extends ColumnsShape>(
+    insert: Insert<Columns, null>,
+    client?: PoolClient,
+  ): Promise<{ readonly rowCount: number }>;
+  run<Columns extends ColumnsShape>(
     query: Relation<Columns> & {
       readonly _columns: { readonly __tenonDuplicateColumns?: never };
     },
     client?: PoolClient,
-  ): Promise<RowOf<Columns>[]> {
-    const compiled = relationToSql(query.node);
+  ): Promise<RowOf<Columns>[]>;
+  async run(
+    query: Relation<ColumnsShape> | Insert<ColumnsShape, ColumnsShape | null>,
+    client?: PoolClient,
+  ): Promise<unknown> {
     const runner: QueryRunner = client ?? this.pool;
+    if (query instanceof Insert) {
+      const compiled = insertToSql(query.node);
+      const result = await runner.query(compiled.text, [...compiled.params]);
+      if (query.node.returning === null) {
+        return { rowCount: result.rowCount ?? 0 };
+      }
+      return result.rows;
+    }
+    const compiled = relationToSql(query.node);
     const result = await runner.query(compiled.text, [...compiled.params]);
-    return result.rows as RowOf<Columns>[];
+    return result.rows;
   }
 }

@@ -12,15 +12,14 @@ import {
   offset as offsetNode,
   order as orderNode,
   project as projectNode,
-  projectionItem,
   where as whereNode,
 } from "../ast/relation.js";
-import type { ProjectionItem, RelationNode } from "../ast/relation.js";
+import type { RelationNode } from "../ast/relation.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
-import { AliasedColumn } from "./AliasedColumn.js";
 import type { Expression } from "./Expression.js";
 import { JoinBuilder } from "./JoinBuilder.js";
 import type { Ordering } from "./Ordering.js";
+import { toProjectionItem } from "./projection.js";
 import type { ProjectableItem, ProjectedShape } from "./types.js";
 
 export class Relation<Columns extends ColumnsShape> {
@@ -93,12 +92,4 @@ export class Relation<Columns extends ColumnsShape> {
     }
     return new JoinBuilder<Columns, RColumns>(this.node, right.node);
   }
-}
-
-/** Build an AST ProjectionItem from a Column or AliasedColumn. */
-function toProjectionItem(item: ProjectableItem): ProjectionItem {
-  if (item instanceof AliasedColumn) {
-    return projectionItem(item.node, item.outputName);
-  }
-  return projectionItem(item.node, item.columnName);
 }
