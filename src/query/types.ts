@@ -21,12 +21,14 @@ import type { Expression } from "./Expression.js";
  * NULL is not accepted here. Use `.isNull()` / `.isNotNull()` instead;
  * the SQL `=` and `<>` operators do not behave as null-checks.
  */
-export type ComparableTo<Type extends ColumnType<unknown, string, boolean>> =
+export type ComparableTo<
+  Type extends ColumnType<unknown, string, boolean, boolean, boolean>,
+> =
   | Type["_tsType"]
   | Column<
       string,
       string,
-      ColumnType<Type["_tsType"], Type["_sqlTag"], boolean>
+      ColumnType<Type["_tsType"], Type["_sqlTag"], boolean, boolean, boolean>
     >
   | Expression<Type["_tsType"]>;
 
@@ -35,17 +37,27 @@ export type ComparableTo<Type extends ColumnType<unknown, string, boolean>> =
  * name) or an AliasedColumn (output name = explicit alias).
  */
 export type ProjectableItem =
-  | Column<string, string, ColumnType<unknown, string, boolean>>
-  | AliasedColumn<string, ColumnType<unknown, string, boolean>>;
+  | Column<
+      string,
+      string,
+      ColumnType<unknown, string, boolean, boolean, boolean>
+    >
+  | AliasedColumn<
+      string,
+      ColumnType<unknown, string, boolean, boolean, boolean>
+    >;
 
 /** Static output name an item contributes to a projected row. */
 export type ItemOutputName<Item> =
-  Item extends AliasedColumn<infer Name, ColumnType<unknown, string, boolean>>
+  Item extends AliasedColumn<
+    infer Name,
+    ColumnType<unknown, string, boolean, boolean, boolean>
+  >
     ? Name
     : Item extends Column<
           string,
           infer Name,
-          ColumnType<unknown, string, boolean>
+          ColumnType<unknown, string, boolean, boolean, boolean>
         >
       ? Name
       : never;

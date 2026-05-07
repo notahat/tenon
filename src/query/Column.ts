@@ -27,7 +27,7 @@ import type { ComparableTo } from "./types.js";
 export class Column<
   TableName extends string,
   Name extends string,
-  Type extends ColumnType<unknown, string, boolean>,
+  Type extends ColumnType<unknown, string, boolean, boolean, boolean>,
 > {
   // Phantom: never read at runtime; used to thread table/column/type
   // identity through comparators and `project`.

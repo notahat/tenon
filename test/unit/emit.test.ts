@@ -9,8 +9,18 @@ function column(
   columnName: string,
   typname: string,
   nullable: boolean,
+  hasDefault: boolean = false,
+  isGenerated: boolean = false,
 ): CatalogColumn {
-  return { schema, tableName, columnName, typname, nullable };
+  return {
+    schema,
+    tableName,
+    columnName,
+    typname,
+    nullable,
+    hasDefault,
+    isGenerated,
+  };
 }
 
 describe("emitSchemaFile", () => {
@@ -37,16 +47,29 @@ describe("emitSchemaFile", () => {
     );
   });
 
-  it("renders columns with their TS type, SQL tag, and nullability", () => {
+  it("renders columns with their TS type, SQL tag, and per-column flags", () => {
     const output = emitSchemaFile([
       column("public", "users", "id", "int4", false),
       column("public", "users", "email", "text", true),
     ]);
     expect(output).toContain(
-      `"id": columnType<number, "int4">({ nullable: false }),`,
+      `"id": columnType<number, "int4">({ nullable: false, hasDefault: false, isGenerated: false }),`,
     );
     expect(output).toContain(
-      `"email": columnType<string, "text">({ nullable: true }),`,
+      `"email": columnType<string, "text">({ nullable: true, hasDefault: false, isGenerated: false }),`,
+    );
+  });
+
+  it("renders hasDefault and isGenerated when the catalog reports them", () => {
+    const output = emitSchemaFile([
+      column("public", "users", "id", "int4", false, true, false),
+      column("public", "users", "full_name", "text", false, false, true),
+    ]);
+    expect(output).toContain(
+      `"id": columnType<number, "int4">({ nullable: false, hasDefault: true, isGenerated: false }),`,
+    );
+    expect(output).toContain(
+      `"full_name": columnType<string, "text">({ nullable: false, hasDefault: false, isGenerated: true }),`,
     );
   });
 

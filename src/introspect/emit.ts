@@ -57,9 +57,13 @@ function renderColumnLine(column: CatalogColumn): string {
     : "";
   const key = renderStringLiteral(column.columnName);
   const sqlTag = renderStringLiteral(mapped.sqlTag);
+  const flags =
+    `nullable: ${column.nullable}, ` +
+    `hasDefault: ${column.hasDefault}, ` +
+    `isGenerated: ${column.isGenerated}`;
   return (
     `  ${key}: columnType<${mapped.tsType}, ${sqlTag}>(` +
-    `{ nullable: ${column.nullable} }),${fallbackComment}`
+    `{ ${flags} }),${fallbackComment}`
   );
 }
 

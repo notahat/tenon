@@ -12,7 +12,7 @@ import type { ColumnType } from "../schema-runtime/columnType.js";
 
 export class AliasedColumn<
   OutputName extends string,
-  Type extends ColumnType<unknown, string, boolean>,
+  Type extends ColumnType<unknown, string, boolean, boolean, boolean>,
 > {
   // Phantom: never read at runtime; flows the literal output-name and
   // column-type through projection inference.

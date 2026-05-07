@@ -22,6 +22,17 @@ export interface CatalogColumn {
   readonly columnName: string;
   readonly typname: string;
   readonly nullable: boolean;
+  /**
+   * True when the column has a DEFAULT clause or is an identity column
+   * (serial / GENERATED ... AS IDENTITY); these columns are optional in
+   * INSERTs.
+   */
+  readonly hasDefault: boolean;
+  /**
+   * True when the column is GENERATED ALWAYS AS (expr) STORED; these
+   * columns cannot be supplied to INSERT.
+   */
+  readonly isGenerated: boolean;
 }
 
 const QUERY = `
@@ -30,7 +41,9 @@ const QUERY = `
     c.relname        AS table_name,
     a.attname        AS column_name,
     t.typname        AS typname,
-    NOT a.attnotnull AS nullable
+    NOT a.attnotnull AS nullable,
+    (a.atthasdef OR a.attidentity <> '') AS has_default,
+    (a.attgenerated <> '')               AS is_generated
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
   JOIN pg_attribute a ON a.attrelid = c.oid
@@ -49,6 +62,8 @@ interface CatalogRow {
   column_name: string;
   typname: string;
   nullable: boolean;
+  has_default: boolean;
+  is_generated: boolean;
 }
 
 /**
@@ -69,5 +84,7 @@ export async function readCatalog(
     columnName: row.column_name,
     typname: row.typname,
     nullable: row.nullable,
+    hasDefault: row.has_default,
+    isGenerated: row.is_generated,
   }));
 }

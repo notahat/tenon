@@ -47,13 +47,33 @@ describe("innerJoin factory", () => {
 
 describe("Relation.innerJoin().on()", () => {
   const users = defineTable("public", "users", {
-    id: columnType<number, "int4">({ nullable: false }),
-    email: columnType<string, "text">({ nullable: false }),
+    id: columnType<number, "int4">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
+    email: columnType<string, "text">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
   });
   const posts = defineTable("public", "posts", {
-    post_id: columnType<number, "int4">({ nullable: false }),
-    author_id: columnType<number, "int4">({ nullable: false }),
-    body: columnType<string, "text">({ nullable: true }),
+    post_id: columnType<number, "int4">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
+    author_id: columnType<number, "int4">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
+    body: columnType<string, "text">({
+      nullable: true,
+      hasDefault: false,
+      isGenerated: false,
+    }),
   });
 
   it("innerJoin returns a JoinBuilder; .on() returns a Relation", () => {
@@ -84,9 +104,21 @@ describe("Relation.innerJoin().on()", () => {
 
   it("supports stacked innerJoins built fluently (left-deep tree)", () => {
     const tags = defineTable("public", "tags", {
-      tag_id: columnType<number, "int4">({ nullable: false }),
-      post_ref: columnType<number, "int4">({ nullable: false }),
-      label: columnType<string, "text">({ nullable: false }),
+      tag_id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+      post_ref: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+      label: columnType<string, "text">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
     });
 
     const joined = users

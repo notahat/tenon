@@ -18,7 +18,6 @@ import {
 import type { ProjectionItem, RelationNode } from "../ast/relation.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
 import { AliasedColumn } from "./AliasedColumn.js";
-import { Column } from "./Column.js";
 import type { Expression } from "./Expression.js";
 import { JoinBuilder } from "./JoinBuilder.js";
 import type { Ordering } from "./Ordering.js";

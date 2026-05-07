@@ -5,9 +5,21 @@ import { defineTable } from "../../src/schema-runtime/defineTable.js";
 import { relationToSql } from "../../src/sql/serialise.js";
 
 const users = defineTable("public", "users", {
-  id: columnType<number, "int4">({ nullable: false }),
-  email: columnType<string, "text">({ nullable: false }),
-  age: columnType<number, "int4">({ nullable: true }),
+  id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  email: columnType<string, "text">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  age: columnType<number, "int4">({
+    nullable: true,
+    hasDefault: false,
+    isGenerated: false,
+  }),
 });
 
 describe("Relation.where", () => {

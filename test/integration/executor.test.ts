@@ -35,9 +35,21 @@ describe("Database.run end-to-end", () => {
       }
 
       const users = defineTable(schema, "users", {
-        id: columnType<number, "int4">({ nullable: false }),
-        email: columnType<string, "text">({ nullable: false }),
-        age: columnType<number, "int4">({ nullable: true }),
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        email: columnType<string, "text">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        age: columnType<number, "int4">({
+          nullable: true,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const db = new Database(sharedPool);
 
@@ -74,8 +86,16 @@ describe("Database.run end-to-end", () => {
       }
 
       const users = defineTable(schema, "users", {
-        id: columnType<number, "int4">({ nullable: false }),
-        email: columnType<string, "text">({ nullable: false }),
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        email: columnType<string, "text">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const db = new Database(sharedPool);
 
@@ -104,9 +124,21 @@ describe("Database.run end-to-end", () => {
       }
 
       const users = defineTable(schema, "users", {
-        id: columnType<number, "int4">({ nullable: false }),
-        email: columnType<string, "text">({ nullable: false }),
-        age: columnType<number, "int4">({ nullable: true }),
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        email: columnType<string, "text">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        age: columnType<number, "int4">({
+          nullable: true,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const db = new Database(sharedPool);
 

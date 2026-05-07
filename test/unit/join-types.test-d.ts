@@ -14,20 +14,48 @@ import { defineTable } from "../../src/schema-runtime/defineTable.js";
 declare const db: Database;
 
 const users = defineTable("public", "users", {
-  id: columnType<number, "int4">({ nullable: false }),
-  email: columnType<string, "text">({ nullable: false }),
+  id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  email: columnType<string, "text">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
 });
 
 const posts = defineTable("public", "posts", {
-  post_id: columnType<number, "int4">({ nullable: false }),
-  author_id: columnType<number, "int4">({ nullable: false }),
-  body: columnType<string, "text">({ nullable: true }),
+  post_id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  author_id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  body: columnType<string, "text">({
+    nullable: true,
+    hasDefault: false,
+    isGenerated: false,
+  }),
 });
 
 const teams = defineTable("public", "teams", {
   // Shares `id` with `users` to exercise the collision branch.
-  id: columnType<number, "int4">({ nullable: false }),
-  name: columnType<string, "text">({ nullable: false }),
+  id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  name: columnType<string, "text">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
 });
 
 test("innerJoin returns a JoinBuilder, not a Relation", () => {

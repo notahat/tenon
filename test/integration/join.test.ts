@@ -46,13 +46,33 @@ describe("INNER JOIN end-to-end", () => {
       }
 
       const users = defineTable(schema, "users", {
-        id: columnType<number, "int4">({ nullable: false }),
-        email: columnType<string, "text">({ nullable: false }),
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        email: columnType<string, "text">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const teams = defineTable(schema, "teams", {
-        id: columnType<number, "int4">({ nullable: false }),
-        name: columnType<string, "text">({ nullable: false }),
-        owner_id: columnType<number, "int4">({ nullable: false }),
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        name: columnType<string, "text">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        owner_id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const db = new Database(sharedPool);
 
@@ -94,9 +114,21 @@ describe("INNER JOIN end-to-end", () => {
       }
 
       const users = defineTable(schema, "users", {
-        id: columnType<number, "int4">({ nullable: false }),
-        email: columnType<string, "text">({ nullable: false }),
-        manager_id: columnType<number, "int4">({ nullable: true }),
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        email: columnType<string, "text">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        manager_id: columnType<number, "int4">({
+          nullable: true,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const manager = users.as("manager");
       const db = new Database(sharedPool);
@@ -153,13 +185,33 @@ describe("INNER JOIN end-to-end", () => {
       }
 
       const users = defineTable(schema, "users", {
-        id: columnType<number, "int4">({ nullable: false }),
-        email: columnType<string, "text">({ nullable: false }),
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        email: columnType<string, "text">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const posts = defineTable(schema, "posts", {
-        post_id: columnType<number, "int4">({ nullable: false }),
-        author_id: columnType<number, "int4">({ nullable: false }),
-        body: columnType<string, "text">({ nullable: true }),
+        post_id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        author_id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+        body: columnType<string, "text">({
+          nullable: true,
+          hasDefault: false,
+          isGenerated: false,
+        }),
       });
       const db = new Database(sharedPool);
 

@@ -78,7 +78,11 @@ function buildTable<Alias extends string, Columns extends ColumnsShape>(
   const relation = new Relation<Columns>(node);
   const accessors: Record<
     string,
-    Column<string, string, ColumnType<unknown, string, boolean>>
+    Column<
+      string,
+      string,
+      ColumnType<unknown, string, boolean, boolean, boolean>
+    >
   > = {};
   for (const columnName of Object.keys(columns)) {
     accessors[columnName] = new Column(alias, columnName);

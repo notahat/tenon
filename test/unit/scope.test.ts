@@ -6,9 +6,21 @@ import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
 
 const users = defineTable("public", "users", {
-  id: columnType<number, "int4">({ nullable: false }),
-  email: columnType<string, "text">({ nullable: false }),
-  active: columnType<boolean, "bool">({ nullable: false }),
+  id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  email: columnType<string, "text">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  active: columnType<boolean, "bool">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
 });
 
 describe("scope", () => {
