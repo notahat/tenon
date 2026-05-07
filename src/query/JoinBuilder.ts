@@ -5,8 +5,9 @@
 // Relation. Splitting it in two means "forgot the ON clause" is a
 // compile error rather than emitting a Cartesian product.
 //
-// Out of scope: outer joins (deferred), joining sub-queries (the
-// fluent surface restricts the right side to a defined table for now).
+// Out of scope: outer joins and joining sub-queries, neither of which
+// is yet supported (the fluent surface restricts the right side to a
+// defined table).
 
 import { innerJoin as innerJoinNode } from "../ast/relation.js";
 import type { RelationNode, TableRef } from "../ast/relation.js";

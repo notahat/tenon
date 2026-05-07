@@ -3,8 +3,8 @@
 // `column.asc()` / `column.desc()`) and reject bare columns or
 // expressions, which could otherwise be silently dropped.
 //
-// Out of scope: SQL serialisation; ordering nullability semantics
-// (NULLS FIRST / NULLS LAST is deferred until a later commit).
+// Out of scope: SQL serialisation; NULLS FIRST / NULLS LAST nullability
+// semantics, which are not yet supported.
 
 import type { OrderTerm } from "../ast/relation.js";
 

@@ -3,12 +3,11 @@
 // Database does NOT own the lifecycle of the pool it is handed; the
 // caller is responsible for `pool.end()`. A single pooled client may
 // be supplied to `run` so callers managing their own transactions can
-// route a query through the same client (transactions themselves are
-// deferred to a later commit).
+// route a query through the same client.
 //
-// Out of scope: streaming / cursor support; transaction management;
-// custom type parsers (we trust pg's defaults to match the
-// Postgres -> TS map declared in the schema runtime).
+// Out of scope: streaming / cursor support; transaction management
+// (not yet supported); custom type parsers (we trust pg's defaults to
+// match the Postgres -> TS map declared in the schema runtime).
 
 import type { Pool, PoolClient } from "pg";
 

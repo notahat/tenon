@@ -22,7 +22,6 @@ export interface CatalogColumn {
   readonly columnName: string;
   readonly typname: string;
   readonly nullable: boolean;
-  readonly ordinalPosition: number;
 }
 
 const QUERY = `
@@ -31,8 +30,7 @@ const QUERY = `
     c.relname        AS table_name,
     a.attname        AS column_name,
     t.typname        AS typname,
-    NOT a.attnotnull AS nullable,
-    a.attnum         AS ordinal_position
+    NOT a.attnotnull AS nullable
   FROM pg_class c
   JOIN pg_namespace n ON n.oid = c.relnamespace
   JOIN pg_attribute a ON a.attrelid = c.oid
@@ -51,13 +49,14 @@ interface CatalogRow {
   column_name: string;
   typname: string;
   nullable: boolean;
-  ordinal_position: number;
 }
 
 /**
  * Query pg_catalog for every column in the given schemas. Tables,
  * views, materialised views, and partitioned tables are all returned;
- * dropped columns and system columns are excluded.
+ * dropped columns and system columns are excluded. Result rows are
+ * ordered by (schema, table, attnum) so downstream emitters can rely
+ * on input order to preserve column order within each table.
  */
 export async function readCatalog(
   runner: QueryRunner,
@@ -70,6 +69,5 @@ export async function readCatalog(
     columnName: row.column_name,
     typname: row.typname,
     nullable: row.nullable,
-    ordinalPosition: row.ordinal_position,
   }));
 }

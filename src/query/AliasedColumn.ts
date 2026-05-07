@@ -3,9 +3,9 @@
 // where the output name becomes a key in the projected row's static
 // shape.
 //
-// Out of scope: SQL serialisation; non-column expressions in
-// projections (those will need a separate aliased-expression wrapper
-// when scalar expressions land in a future commit).
+// Out of scope: SQL serialisation; aliasing of non-column scalar
+// expressions, which is not yet supported and would need a separate
+// aliased-expression wrapper.
 
 import type { ExpressionNode } from "../ast/expression.js";
 import type { ColumnType } from "../schema-runtime/columnType.js";

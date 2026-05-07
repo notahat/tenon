@@ -1,6 +1,9 @@
 // SQL strings for the binary and unary operators carried by the AST.
 // Kept separate from the serialiser so adding a new operator is one
 // edit, not several.
+//
+// Out of scope: parenthesisation / precedence (handled by the
+// serialiser); operator typing (handled in the AST module).
 
 import type { BinaryOperator, UnaryOperator } from "../ast/expression.js";
 

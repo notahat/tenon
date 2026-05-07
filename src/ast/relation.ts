@@ -68,8 +68,9 @@ export interface Offset {
 
 /**
  * An INNER JOIN. The left side (`source`) is the existing relation —
- * it may already carry where/order/limit/offset/project. The right side
- * is restricted to a TableRef in v1.5; joining a sub-query is deferred.
+ * it may already carry where/order/limit/offset/project. The right
+ * side is restricted to a TableRef; joining a sub-query is not yet
+ * supported.
  */
 export interface InnerJoin {
   readonly kind: "InnerJoin";

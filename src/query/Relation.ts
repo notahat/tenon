@@ -1,7 +1,7 @@
 // Fluent wrapper around a relation AST tree. Each operator method
-// returns a new Relation; nothing mutates. Phantom Columns generic
+// returns a new Relation; nothing mutates. The phantom Columns generic
 // flows the relation's column shape forward so downstream operators
-// (and, in commit 5, projection result rows) can reason about it.
+// and projection inference can reason about it.
 //
 // Out of scope: SQL serialisation; column accessor merging (handled
 // by `defineTable`, which intersects this type with the per-column
@@ -78,8 +78,8 @@ export class Relation<Columns extends ColumnsShape> {
    * complete until the predicate is supplied.
    *
    * The right side is restricted to a `defineTable(...)` value (it
-   * must carry `_tableName` / `_schema`) so v1.5 doesn't have to
-   * commit to a runtime story for joining sub-queries.
+   * must carry `_tableName` / `_schema`) so the join's right side is
+   * a base table reference, not an arbitrary sub-query.
    */
   innerJoin<RColumns extends ColumnsShape>(
     right: Relation<RColumns> & {
@@ -101,11 +101,5 @@ function toProjectionItem(item: ProjectableItem): ProjectionItem {
   if (item instanceof AliasedColumn) {
     return projectionItem(item.node, item.outputName);
   }
-  if (item instanceof Column) {
-    return projectionItem(item.node, item.columnName);
-  }
-  // The type guards above are exhaustive over ProjectableItem; this
-  // throw exists so an accidental bypass at the type level still
-  // surfaces a clear runtime error rather than silent corruption.
-  throw new Error("project() received a value that is not a column.");
+  return projectionItem(item.node, item.columnName);
 }
