@@ -33,26 +33,49 @@ const recent = await db.run(
     .project(users.email, posts.body.as("post")),
 );
 //    ^? Array<{ email: string; post: string }>
+
+// Insert with RETURNING: serial PKs and DEFAULT-bearing columns are
+// optional in the attrs object; generated columns are absent entirely.
+const created = await db.run(
+  users
+    .insert({ email: "pete@notahat.com", active: true })
+    .returning(users.id, users.createdAt),
+);
+//    ^? Array<{ id: number; createdAt: Date }>
+
+// Insert without RETURNING resolves to a row count.
+const result = await db.run(
+  users.insert({ email: "two@notahat.com", active: true }),
+);
+//    ^? { rowCount: number }
 ```
 
 ## Current scope
 
-- Operators: `project`, `where`, `order`, `limit`, `offset`, `innerJoin
-  ... on`. Tables expose `.as(alias)` for renaming (enables self-joins
-  and disambiguation).
+- Read operators: `project`, `where`, `order`, `limit`, `offset`,
+  `innerJoin ... on`. Tables expose `.as(alias)` for renaming (enables
+  self-joins and disambiguation).
+- Write operators: single-row `Table.insert(attrs)` with optional
+  `.returning(...)`.
 - PostgreSQL only, via [`pg`](https://www.npmjs.com/package/pg).
 - Schema generated from a live database via the `tenon-generate` CLI.
+  The introspector reads `nullable`, `hasDefault` (DEFAULT clauses and
+  identity columns), and `isGenerated` (STORED generated expressions)
+  per column, so insert types know what to require, allow, and forbid.
 - Type system enforces: column existence, column types in expressions,
-  precise result-row types from `project`, and a compile-time error at
+  precise result-row types from `project`, a compile-time error at
   `db.run` if a joined relation has duplicate column names (project or
-  alias to fix).
+  alias to fix), and — for inserts — required NOT NULL columns are
+  required, columns with defaults are optional, and generated columns
+  are absent from the attrs type entirely.
 
 ## Deferred
 
 Outer joins (`leftJoin` / `rightJoin` / `fullJoin`), aggregates and
-`group by`, set operations, sub-queries / CTEs, DML, transactions, and
-streaming are not yet implemented. The AST and type plumbing are
-designed to absorb them without breaking changes.
+`group by`, set operations, sub-queries / CTEs, multi-row inserts,
+`ON CONFLICT`, `UPDATE`, `DELETE`, transactions, and streaming are not
+yet implemented. The AST and type plumbing are designed to absorb them
+without breaking changes.
 
 ## Type-mapping notes (worth knowing up front)
 
