@@ -12,11 +12,12 @@
 
 import type { Pool, PoolClient } from "pg";
 
+import { Delete } from "../query/Delete.js";
 import { Insert } from "../query/Insert.js";
 import type { Relation } from "../query/Relation.js";
 import type { RowOf } from "../query/types.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
-import { insertToSql, relationToSql } from "../sql/serialise.js";
+import { deleteToSql, insertToSql, relationToSql } from "../sql/serialise.js";
 
 /** A query runner accepted by `Database.run`. Both pg.Pool and pg.PoolClient match. */
 interface QueryRunner {
@@ -42,6 +43,14 @@ export class Database {
    * `Table.as(...)` before joining.
    */
   run<Columns extends ColumnsShape, Returning extends ColumnsShape>(
+    remove: Delete<Columns, Returning>,
+    client?: PoolClient,
+  ): Promise<RowOf<Returning>[]>;
+  run<Columns extends ColumnsShape>(
+    remove: Delete<Columns, null>,
+    client?: PoolClient,
+  ): Promise<{ readonly rowCount: number }>;
+  run<Columns extends ColumnsShape, Returning extends ColumnsShape>(
     insert: Insert<Columns, Returning>,
     client?: PoolClient,
   ): Promise<RowOf<Returning>[]>;
@@ -56,12 +65,23 @@ export class Database {
     client?: PoolClient,
   ): Promise<RowOf<Columns>[]>;
   async run(
-    query: Relation<ColumnsShape> | Insert<ColumnsShape, ColumnsShape | null>,
+    query:
+      | Relation<ColumnsShape>
+      | Insert<ColumnsShape, ColumnsShape | null>
+      | Delete<ColumnsShape, ColumnsShape | null>,
     client?: PoolClient,
   ): Promise<unknown> {
     const runner: QueryRunner = client ?? this.pool;
     if (query instanceof Insert) {
       const compiled = insertToSql(query.node);
+      const result = await runner.query(compiled.text, [...compiled.params]);
+      if (query.node.returning === null) {
+        return { rowCount: result.rowCount ?? 0 };
+      }
+      return result.rows;
+    }
+    if (query instanceof Delete) {
+      const compiled = deleteToSql(query.node);
       const result = await runner.query(compiled.text, [...compiled.params]);
       if (query.node.returning === null) {
         return { rowCount: result.rowCount ?? 0 };

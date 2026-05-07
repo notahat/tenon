@@ -9,10 +9,14 @@
 // Out of scope: introspection / code generation (src/introspect/...);
 // per-row TS types (those flow from the columns map's element types).
 
+import { deleteNode } from "../ast/delete.js";
 import { insertColumnValue, insertNode } from "../ast/insert.js";
 import { parameter } from "../ast/expression.js";
-import { tableRef } from "../ast/relation.js";
+import { tableRef, where as whereNode } from "../ast/relation.js";
 import { Column } from "../query/Column.js";
+import { Delete } from "../query/Delete.js";
+import { DeletableScope } from "../query/DeletableScope.js";
+import type { Expression } from "../query/Expression.js";
 import { Insert } from "../query/Insert.js";
 import { Relation } from "../query/Relation.js";
 import type { InsertableAttrs } from "../query/types.js";
@@ -25,10 +29,10 @@ import type { ColumnType, ColumnsShape } from "./columnType.js";
  * `FROM ... AS ...`. After `defineTable` it equals the table name;
  * after `.as("u")` it carries the user-supplied alias.
  */
-export type Table<
-  Alias extends string,
-  Columns extends ColumnsShape,
-> = Relation<Columns> &
+export type Table<Alias extends string, Columns extends ColumnsShape> = Omit<
+  Relation<Columns>,
+  "where"
+> &
   Readonly<{
     _tableName: Alias;
     _schema: string;
@@ -54,6 +58,27 @@ export type Table<
      * rows; without it, `db.run(...)` resolves to `{ rowCount }`.
      */
     insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null>;
+    /**
+     * Narrow this table for read or DELETE. The returned scope is a
+     * Relation (so `.order`, `.limit`, etc. all work for SELECTs) but
+     * also carries `.delete()`, which builds a DELETE using the
+     * accumulated predicate chain.
+     */
+    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns>;
+    /**
+     * Footgun catch: builds a DELETE with no WHERE clause and the
+     * `allowEmptyPredicates` flag off. The serialiser refuses to emit
+     * it; the error message points at `deleteAll()`. Always go through
+     * `.where(...).delete()` or `.deleteAll()` instead.
+     */
+    delete(): Delete<Columns, null>;
+    /**
+     * Build a DELETE that wipes every row in this table. The
+     * `allowEmptyPredicates` flag is set so the serialiser does not
+     * throw. Reach for this only when you genuinely want to clear the
+     * table; otherwise narrow with `.where(...)` first.
+     */
+    deleteAll(): Delete<Columns, null>;
   };
 
 /**
@@ -112,6 +137,22 @@ function buildTable<Alias extends string, Columns extends ColumnsShape>(
       );
       return new Insert<Columns, null>(
         insertNode({ target: node, columnValues }),
+      );
+    },
+    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns> {
+      return new DeletableScope<Alias, Columns>(
+        whereNode(node, predicate.node),
+        node,
+      );
+    },
+    delete(): Delete<Columns, null> {
+      return new Delete<Columns, null>(
+        deleteNode({ target: node, allowEmptyPredicates: false }),
+      );
+    },
+    deleteAll(): Delete<Columns, null> {
+      return new Delete<Columns, null>(
+        deleteNode({ target: node, allowEmptyPredicates: true }),
       );
     },
   });
