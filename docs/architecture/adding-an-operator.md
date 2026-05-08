@@ -102,9 +102,7 @@ A few rules to follow:
   target's alias because predicates don't reference it; DELETE
   preserves it because they do.
 
-### 3. Fluent: `src/query/Delete.ts` and
-
-`src/query/DeletableScope.ts`
+### 3. Fluent: `Delete.ts` and `DeletableScope.ts`
 
 Two classes:
 
