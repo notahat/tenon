@@ -12,12 +12,14 @@ class Database {
 
 ## Overload dispatch
 
-`run` has seven overloads, declared **before** the implementation
+`run` has nine overloads, declared **before** the implementation
 signature:
 
 ```ts
 run<C, R>(statement: Delete<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
 run<C>(statement: Delete<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
+run<C, R>(statement: Update<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
+run<C>(statement: Update<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
 run<C, R>(statement: Insert<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
 run<C>(statement: Insert<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
 run<C>(statement: SingleRowOrThrow<C>, client?: PoolClient): Promise<RowOf<C>>;
@@ -27,11 +29,11 @@ run<C>(statement: Relation<C> & { ...no-brand check... }, client?: PoolClient): 
 
 Order matters within a class:
 
-- For both `Insert` and `Delete`, the `Returning extends ColumnsShape`
-  overload comes **before** the `Returning extends null` one.
-  TypeScript picks the first overload that fits; putting the
-  more-specific overload first means `.returning(...)` calls
-  resolve to the rows form, not the rowCount form.
+- For `Insert`, `Update`, and `Delete`, the `Returning extends
+  ColumnsShape` overload comes **before** the `Returning extends
+  null` one. TypeScript picks the first overload that fits;
+  putting the more-specific overload first means `.returning(...)`
+  calls resolve to the rows form, not the rowCount form.
 - `SingleRowOrThrow` comes before `SingleRow` for the same
   reason: the throwing variant has the narrower return type
   (`RowOf<C>`), so listing it first lets `find(id).orThrow()`
@@ -43,10 +45,10 @@ Order matters within a class:
   from a join. The brand becomes a compile error at the call
   site rather than a "weird Postgres error" at runtime.
 
-Order between classes (Delete / Insert / SingleRow / Relation)
-doesn't matter for type-level dispatch — they're discriminated
-by class — but the implementation cascade reads top to bottom,
-so keep the order consistent.
+Order between classes (Delete / Update / Insert / SingleRow /
+Relation) doesn't matter for type-level dispatch — they're
+discriminated by class — but the implementation cascade reads
+top to bottom, so keep the order consistent.
 
 `SingleRow` and `Relation` are the one place where the dispatch
 needs help from a phantom field: both wrap a `RelationNode`, so
@@ -74,6 +76,9 @@ async run(statement, client?) {
     if (statement.node.returning === null) return { rowCount: result.rowCount ?? 0 };
     return result.rows;
   }
+  if (statement instanceof Update) {
+    // identical shape, updateToSql instead
+  }
   if (statement instanceof Delete) {
     // identical shape, deleteToSql instead
   }
@@ -100,9 +105,10 @@ async run(statement, client?) {
 care about the type-system phantoms. The runtime correctness
 check is "what class is this", not "what generics does it carry".
 
-The `Insert` and `Delete` branches both check `statement.node.returning
-=== null` to pick between the rowCount form and the rows form.
-That's the runtime mirror of the overloads on `_returning`.
+The `Insert`, `Update`, and `Delete` branches all check
+`statement.node.returning === null` to pick between the rowCount
+form and the rows form. That's the runtime mirror of the
+overloads on `_returning`.
 
 The `SingleRow` and `SingleRowOrThrow` branches share the same
 `relationToSql` path as the `Relation` branch — there is no
@@ -159,5 +165,5 @@ runtime values. The contract is:
   the schema file in sync; running it after every migration is
   the user's job.)
 - Errors from `pg` propagate unchanged. Tenon-thrown errors
-  (empty-WHERE DELETE, joining a non-table) all happen
-  **before** `runner.query(...)` is called.
+  (empty-WHERE DELETE / UPDATE, empty-attrs UPDATE, joining a
+  non-table) all happen **before** `runner.query(...)` is called.

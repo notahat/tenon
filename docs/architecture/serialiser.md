@@ -3,11 +3,12 @@
 `src/sql/serialise.ts` — pure functions that turn AST nodes into
 parameterised SQL.
 
-Three top-level entry points, one per statement category:
+Four top-level entry points, one per statement category:
 
 ```ts
 relationToSql(node: RelationNode): CompiledQuery;  // SELECT
 insertToSql(node: InsertNode): CompiledQuery;      // INSERT
+updateToSql(node: UpdateNode): CompiledQuery;      // UPDATE
 deleteToSql(node: DeleteNode): CompiledQuery;      // DELETE
 
 interface CompiledQuery {
@@ -32,7 +33,7 @@ interface EmitContext {
 
 The single mutable accumulator is contained to one top-level
 call, so the public `relationToSql` / `insertToSql` /
-`deleteToSql` are externally pure.
+`updateToSql` / `deleteToSql` are externally pure.
 
 `Parameter` AST nodes carry a runtime value but **not** a
 placeholder index. The serialiser assigns the index when it
@@ -127,6 +128,30 @@ If the column-values list is empty, the emitter writes
 `INSERT INTO ... DEFAULT VALUES`. That's only valid when every
 column has a default; Postgres surfaces the right error
 otherwise.
+
+## UPDATE: `updateToSql` / `emitUpdate`
+
+```
+UPDATE "schema"."name" [AS "alias"] SET "col1" = $1, "col2" = $2
+WHERE <predicates> [RETURNING ...]
+```
+
+Same alias-preserving posture as DELETE, for the same reason: the
+predicates qualify columns by the alias.
+
+`emitUpdate` throws on two empty conditions:
+
+- **Empty SET list.** `update({})` typechecks but the serialiser
+  refuses to emit `UPDATE ... SET ...`. Throws with a message
+  pointing at `update(...)`.
+- **Empty WHERE.** No fluent path produces this — every
+  `WritableScope.update` and `WritableSingleRow.update` supplies
+  predicates — so the guard is purely defensive against direct
+  AST construction.
+
+Parameter numbering goes SET first (in object-key order), then
+WHERE, then RETURNING — the canonical "writes-then-reads" order
+INSERT and DELETE already use.
 
 ## DELETE: `deleteToSql` / `emitDelete`
 

@@ -17,11 +17,13 @@ the relevant page if you're not.
    has-many and belongs-to accessors via `defineSchema`.
 7. [Inserts](inserts.md) — `Table.insert(attrs)` and
    `.returning(...)`.
-8. [Deletes](deletes.md) — `Table.where(...).delete()`,
+8. [Updates](updates.md) — `Table.where(...).update(attrs)`,
+   `Table.find(id).update(attrs)`, `.returning(...)`.
+9. [Deletes](deletes.md) — `Table.where(...).delete()`,
    `.deleteAll()`, the empty-WHERE guard.
-9. [Running queries](running-queries.md) — constructing a
-   `Database`, what `.run()` returns, transactions.
-10. [Type mapping](type-mapping.md) — how Postgres types map to
+10. [Running queries](running-queries.md) — constructing a
+    `Database`, what `.run()` returns, transactions.
+11. [Type mapping](type-mapping.md) — how Postgres types map to
     TypeScript and why some types are returned as `string`.
 
 For full per-symbol details see the

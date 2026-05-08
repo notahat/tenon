@@ -9,10 +9,10 @@ tenon-generate (CLI)
 generated schema file  →  schema-runtime (defineTable, columnType)
         |
         v
-fluent classes (Relation, Insert, Delete, WritableScope, ...)
+fluent classes (Relation, Insert, Update, Delete, WritableScope, ...)
         |
         v  build AST
-ast/ (RelationNode, ExpressionNode, InsertNode, DeleteNode)
+ast/ (RelationNode, ExpressionNode, InsertNode, UpdateNode, DeleteNode)
         |
         v  serialise
 sql/serialise.ts  →  CompiledQuery { text, params }

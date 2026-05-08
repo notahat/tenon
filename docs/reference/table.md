@@ -123,11 +123,11 @@ generated), optional (nullable or has DEFAULT), or absent
 where(predicate: Expression<boolean>): WritableScope<Alias, Columns>;
 ```
 
-Narrow this table for read or DELETE. Overrides
+Narrow this table for read, UPDATE, or DELETE. Overrides
 `Relation.where` — returns a [`WritableScope`](delete.md), which
-is a `Relation` that also carries `.delete()`. `.order`,
-`.limit`, `.project`, `.innerJoin` widen back to `Relation` and
-drop `.delete`.
+is a `Relation` that also carries `.update(...)` and
+`.delete()`. `.order`, `.limit`, `.project`, `.innerJoin` widen
+back to `Relation` and drop both write methods.
 
 ### `.delete()`
 

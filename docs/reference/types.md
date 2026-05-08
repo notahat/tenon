@@ -11,6 +11,7 @@ import type {
   ProjectableItem,
   ProjectedShape,
   RowOf,
+  UpdatableAttrs,
 } from "@notahat/tenon";
 ```
 
@@ -113,6 +114,21 @@ column flags:
   supplying one is a "no such property" error.
 
 See the [inserts guide](../guide/inserts.md).
+
+## `UpdatableAttrs`
+
+```ts
+type UpdatableAttrs<Columns extends ColumnsShape>;
+```
+
+The TS shape `WritableScope.update(attrs)` and
+`WritableSingleRow.update(attrs)` accept. All non-generated
+columns are optional; nullable columns also accept `null`.
+Generated columns are absent. Primary-key columns are updatable.
+`hasDefault` is irrelevant for UPDATE (defaults apply only on
+INSERT).
+
+See the [updates guide](../guide/updates.md).
 
 ## `ForeignKeyTuple`
 

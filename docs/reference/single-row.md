@@ -14,10 +14,11 @@ import {
 
 You don't usually construct any of these directly. `Table.find(id)`
 produces a `WritableSingleRow<Columns>` (a `SingleRow` subclass
-with a `.delete()` method); belongs-to accessors wired by
-`defineSchema` produce plain `SingleRow<Columns>` values; and
-`singleRow.orThrow()` produces a `SingleRowOrThrow<Columns>`. All
-three classes are exported so test code and helpers can name them.
+with `.delete()` and `.update(attrs)` methods); belongs-to
+accessors wired by `defineSchema` produce plain `SingleRow<Columns>`
+values; and `singleRow.orThrow()` produces a
+`SingleRowOrThrow<Columns>`. All three classes are exported so
+test code and helpers can name them.
 
 ## Phantoms
 
@@ -75,6 +76,30 @@ const [deleted] = await db.run(
   schema.posts.find(1).delete().returning(schema.posts.body),
 );
 //      ^? { body: string } | undefined
+```
+
+## `WritableSingleRow.update(attrs)`
+
+```ts
+update(attrs: UpdatableAttrs<Columns>): Update<Columns, null>;
+```
+
+Build an [`Update`](update.md) targeting the same row. The wrapped
+`LIMIT 1` is dropped — Postgres has no `UPDATE ... LIMIT`, and the
+primary-key predicate already restricts the statement to ≤1 row.
+`db.run(update)` resolves to `{ rowCount: 0 | 1 }`. Chain
+`.returning(...)` to recover columns from the updated row.
+
+Like `.delete()`, `.update(attrs)` is available only on the
+`WritableSingleRow` returned by `Table.find(id)`; belongs-to
+accessors return plain `SingleRow`. See
+[`UpdatableAttrs`](types.md#updatableattrs) for the attrs typing.
+
+```ts
+const result = await db.run(
+  schema.posts.find(1).update({ body: "edited" }),
+);
+//    ^? { readonly rowCount: number }
 ```
 
 ## `RowNotFoundError`

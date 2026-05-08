@@ -3,7 +3,8 @@
 Predicate-narrowed `DELETE` with optional `RETURNING`, accessed
 Rails-style through `Table.where(...).delete()`.
 
-`UPDATE` and `DELETE ... USING` are deferred.
+`DELETE ... USING` is deferred. For UPDATE, see
+[Updates](updates.md).
 
 ## The basic shape
 

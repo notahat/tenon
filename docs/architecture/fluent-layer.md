@@ -1,8 +1,8 @@
 # Fluent layer
 
 The user-facing classes that build AST nodes:
-`Relation`, `Insert`, `Delete`, `WritableScope`, `SingleRow`,
-`WritableSingleRow`, `SingleRowOrThrow`, plus the
+`Relation`, `Insert`, `Update`, `Delete`, `WritableScope`,
+`SingleRow`, `WritableSingleRow`, `SingleRowOrThrow`, plus the
 expression-side `Column`, `AliasedColumn`, `Expression`,
 `Ordering`, and `JoinBuilder`.
 
@@ -12,11 +12,12 @@ thread compile-time information forward.
 
 ## Why classes
 
-`Relation`, `Insert`, `Delete`, `SingleRow`, and
+`Relation`, `Insert`, `Update`, `Delete`, `SingleRow`, and
 `SingleRowOrThrow` are classes (not plain discriminated unions
 of POJOs) for one reason: `Database.run` dispatches by
 `instanceof`. The runtime needs to ask "is this an Insert?" /
-"is this a Delete?" / "is this a SingleRow?" without reading a
+"is this an Update?" / "is this a Delete?" / "is this a
+SingleRow?" without reading a
 `kind` field that may not match what the type system thinks (the
 user's generated columns shape isn't in the runtime data).
 `instanceof` is the cheapest, most explicit answer.
@@ -38,6 +39,12 @@ class Relation<Columns, FKs = readonly []> {
 }
 
 class Insert<Columns, Returning> {
+  declare readonly _columns: Columns;
+  declare readonly _returning: Returning;
+  // ...
+}
+
+class Update<Columns, Returning> {
   declare readonly _columns: Columns;
   declare readonly _returning: Returning;
   // ...
@@ -117,10 +124,11 @@ Three uses:
   so they're structurally identical from TypeScript's point of
   view. The `_kind: "SingleRow"` / `_kind: "SingleRowOrThrow"`
   phantoms keep `Database.run`'s SingleRow overloads from also
-  matching a plain Relation. `Insert` and `Delete` don't need
+  matching a plain Relation. `Insert`, `Update`, and `Delete`
+  don't need
   this trick — each wraps its own AST node type
-  (`InsertNode` vs `DeleteNode`), so the structural difference
-  is real already.
+  (`InsertNode` vs `UpdateNode` vs `DeleteNode`), so the
+  structural difference is real already.
 
 The phantoms are documented inline in each class with `// Phantom:`
 comments.
@@ -182,22 +190,31 @@ Wraps an `InsertNode`. `.returning(...)` produces a fresh
 from `null` to a `ColumnsShape` so `Database.run` resolves to
 typed rows.
 
+### `Update<Columns, Returning>`
+
+Wraps an `UpdateNode`. Same `.returning(...)` story as `Insert`.
+Built by `WritableScope.update(attrs)` and
+`WritableSingleRow.update(attrs)` — there is no `.update` on
+`Table` itself.
+
 ### `Delete<Columns, Returning>`
 
 Wraps a `DeleteNode`. Same `.returning(...)` story as `Insert`.
 
 ### `WritableScope<Alias, Columns> extends Relation<Columns>`
 
-A `Relation` plus `.delete()` and a `.where` override that
-returns `WritableScope` (so the scope stays alive across chained
-`.where` calls). Other inherited operators (`.order`, `.limit`,
-`.project`, `.innerJoin`) widen back to plain `Relation` and lose
-`.delete` — which is correct: DELETE has no ORDER/LIMIT/PROJECT/JOIN
-in this iteration.
+A `Relation` plus `.delete()`, `.update(attrs)`, and a `.where`
+override that returns `WritableScope` (so the scope stays alive
+across chained `.where` calls). Other inherited operators
+(`.order`, `.limit`, `.project`, `.innerJoin`) widen back to plain
+`Relation` and drop both write methods — which is correct: UPDATE
+and DELETE have no ORDER/LIMIT/PROJECT/JOIN in this iteration.
 
-`.delete()` walks the wrapped Where-chain back to the root
-`TableRef` and pulls out the predicate list. The walk is local to
-the scope; nothing else in the codebase needs it.
+`.delete()` and `.update(attrs)` both walk the wrapped Where-chain
+back to the root `TableRef` and pull out the predicate list. The
+walk is local to the scope; nothing else in the codebase needs it.
+`.update` additionally flattens the attrs object into an ordered
+list of `UpdateAssignment`s so the SET clause is deterministic.
 
 ### `SingleRow<Columns>`, `WritableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
 
@@ -209,24 +226,25 @@ type-level `Record<never, never>`). The underlying AST is a
 `Where(TableRef, pk = $1)` wrapped in `Limit(1)`.
 
 `Table.find(id)` actually returns a `WritableSingleRow` — a
-`SingleRow` subclass that adds a `.delete()` method. The subclass
-captures the target `TableRef` and the primary-key predicate
-explicitly, so `.delete()` can build a `DeleteNode` without
-walking the wrapped node (the wrapped node has a `Limit` between
-the `Where` and the `TableRef`, which the `WritableScope`
-predicate-walker doesn't handle). The wrapped `LIMIT 1` is
-intentionally dropped at DELETE time: Postgres has no
-`DELETE ... LIMIT`, and the primary-key predicate already
-restricts the statement to ≤1 row.
+`SingleRow` subclass that adds `.delete()` and `.update(attrs)`.
+The subclass captures the target `TableRef` and the primary-key
+predicate explicitly, so the write methods can build a
+`DeleteNode`/`UpdateNode` without walking the wrapped node (the
+wrapped node has a `Limit` between the `Where` and the
+`TableRef`, which the `WritableScope` predicate-walker doesn't
+handle). The wrapped `LIMIT 1` is intentionally dropped at
+write-time: Postgres has no `DELETE/UPDATE ... LIMIT`, and the
+primary-key predicate already restricts the statement to ≤1 row.
 
 This split mirrors `Relation` / `WritableScope`: read-side and
 mutation-side capabilities live on different classes so the type
-system can withhold `.delete()` from values where it would be
-unsound. Belongs-to accessors wired by `defineSchema` (next
-section) construct plain `SingleRow`, not `WritableSingleRow`,
-because their wrapped node is an inner-join relation rather than
-a flat `WHERE pk = ?` — turning that into a `DELETE` would need
-`DELETE USING` or a CTE, which is out of scope.
+system can withhold `.delete()` and `.update()` from values where
+they would be unsound. Belongs-to accessors wired by `defineSchema`
+(next section) construct plain `SingleRow`, not
+`WritableSingleRow`, because their wrapped node is an inner-join
+relation rather than a flat `WHERE pk = ?` — turning that into a
+`DELETE`/`UPDATE` would need `... USING` or a CTE, which is out
+of scope.
 
 `SingleRow.orThrow()` returns a `SingleRowOrThrow` over the same
 underlying node. The two classes differ only in how
@@ -238,7 +256,8 @@ same `Database.run` overload — no separate dispatch branch. All
 three classes are exported from `src/query/SingleRow.ts`.
 
 Neither `SingleRow` nor `SingleRowOrThrow` has operator methods
-of its own; only `WritableSingleRow` adds `.delete()`. The
+of its own; only `WritableSingleRow` adds `.delete()` and
+`.update(attrs)`. The
 association accessors (`posts.find(1).comments`,
 `comments.find(5).post`) are merged onto the SingleRow at runtime
 by `defineSchema` — see the next section. Bare SingleRows (built

@@ -9,24 +9,25 @@ imports outside of `src/ast/`.
 
 ## Statement categories
 
-There are **three** top-level statement types, not one:
+There are **four** top-level statement types, not one:
 
 - `RelationNode` (`src/ast/relation.ts`) — SELECT trees.
 - `InsertNode` (`src/ast/insert.ts`) — INSERT statements.
+- `UpdateNode` (`src/ast/update.ts`) — UPDATE statements.
 - `DeleteNode` (`src/ast/delete.ts`) — DELETE statements.
 
-`InsertNode` and `DeleteNode` are **siblings** of `RelationNode`,
-not variants. The motivation:
+`InsertNode`, `UpdateNode`, and `DeleteNode` are **siblings** of
+`RelationNode`, not variants. The motivation:
 
 - The SELECT serialiser walks `RelationNode` exhaustively. Adding
-  Insert/Delete as `RelationNode` variants would force every
-  switch in `relationToSql` to handle "this isn't actually a
-  relation" cases.
+  Insert/Update/Delete as `RelationNode` variants would force
+  every switch in `relationToSql` to handle "this isn't actually
+  a relation" cases.
 - The duplicate-column brand on joins lives on a relation's
-  columns shape. Inserts and deletes don't have a columns-shape
+  columns shape. Mutation statements don't have a columns-shape
   brand.
 - The fluent split mirrors the AST split: `Relation`, `Insert`,
-  and `Delete` are different classes, dispatched on by
+  `Update`, and `Delete` are different classes, dispatched on by
   `Database.run` via `instanceof`.
 
 Each AST file exports one factory function per node kind, all
@@ -108,6 +109,30 @@ allows arbitrary expressions to make `INSERT INTO t (col) VALUES
 `returning` reuses `ProjectionItem` from the relation AST so the
 RETURNING list and the SELECT-list emit through the same code
 path.
+
+## `UpdateNode`
+
+```ts
+interface UpdateNode {
+  kind: "Update";
+  target: TableRef;
+  assignments: ReadonlyArray<{ column: string; value: ExpressionNode }>;
+  predicates: ReadonlyArray<ExpressionNode>;
+  returning: ReadonlyArray<ProjectionItem> | null;
+}
+```
+
+`assignments` mirrors `InsertNode.columnValues`: a flat list
+preserving user-supplied order so the SET clause is
+deterministic. `predicates` is the same flat AND-list as
+`DeleteNode.predicates`.
+
+There is no `allowEmptyPredicates` flag — every fluent path
+(`WritableScope.update`, `WritableSingleRow.update`) supplies
+predicates, and there's no `updateAll(...)` escape hatch. The
+serialiser unconditionally throws on an empty predicate list and
+on an empty assignment list, so a hand-built `UpdateNode` can't
+smuggle invalid SQL through.
 
 ## `DeleteNode`
 

@@ -82,7 +82,7 @@ tenon's compile-time guarantees come from a few thick type files:
   user's Table type with its associations attached.
 
 Almost no runtime logic lives in these files. The fluent classes
-(`Relation`, `Insert`, `Delete`, `WritableScope`, `SingleRow`)
+(`Relation`, `Insert`, `Update`, `Delete`, `WritableScope`, `SingleRow`)
 carry **phantom** type parameters that thread these types through
 operator chains; they don't enforce them at runtime. The `declare
 readonly _xxx` fields are erased at compile time.

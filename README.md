@@ -54,15 +54,16 @@ const comments = await db.run(posts.find(1).comments);
 //    ^? Array<{ id: number; postId: number; body: string }>
 ```
 
-`tenon` also supports single-row `INSERT` and predicate-narrowed
-`DELETE`, both with optional `RETURNING`. See the
-[guide](docs/guide/README.md) for full coverage.
+`tenon` also supports single-row `INSERT`, predicate-narrowed
+`UPDATE`, and predicate-narrowed `DELETE`, all with optional
+`RETURNING`. See the [guide](docs/guide/README.md) for full
+coverage.
 
 ## Documentation
 
 - **[Guide](docs/guide/README.md)** — task-oriented walkthroughs:
-  installation, schema generation, queries, joins, inserts, deletes,
-  type-mapping caveats.
+  installation, schema generation, queries, joins, inserts, updates,
+  deletes, type-mapping caveats.
 - **[Reference](docs/reference/README.md)** — per-symbol API reference
   for every public export.
 - **[Architecture](docs/architecture/README.md)** — internals: the
@@ -74,16 +75,18 @@ const comments = await db.run(posts.find(1).comments);
 Read operators (`project`, `where`, `order`, `limit`, `offset`,
 `innerJoin`), self-joins via `Table.as(alias)`, single-row
 `Table.insert(...)` with optional `.returning(...)`,
+`Table.where(...).update(attrs)` with optional `.returning(...)`,
 `Table.where(...).delete()` with optional `.returning(...)`,
-primary-key lookup via `Table.find(id)`, and FK-derived
-has-many / belongs-to accessors wired by `defineSchema`.
-PostgreSQL only, via [`pg`](https://www.npmjs.com/package/pg).
+primary-key lookup via `Table.find(id)` (with `.update` and
+`.delete` shorthand), and FK-derived has-many / belongs-to
+accessors wired by `defineSchema`. PostgreSQL only, via
+[`pg`](https://www.npmjs.com/package/pg).
 
 Outer joins, aggregates / `group by`, set operations, sub-queries /
-CTEs, multi-row inserts, `ON CONFLICT`, `UPDATE`, `DELETE ... USING`,
-the Rails-style `Table.where(...).insert(attrs)` chain, transactions,
-and streaming are deferred. The AST and type plumbing are designed to
-absorb them without breaking changes.
+CTEs, multi-row inserts, `ON CONFLICT`, `UPDATE ... FROM`,
+`DELETE ... USING`, the Rails-style `Table.where(...).insert(attrs)`
+chain, transactions, and streaming are deferred. The AST and type
+plumbing are designed to absorb them without breaking changes.
 
 ## Development
 

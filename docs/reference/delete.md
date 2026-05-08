@@ -38,10 +38,12 @@ rules as `Relation.project` and `Insert.returning`.
 
 ## `WritableScope<Alias, Columns>` extends `Relation<Columns>`
 
-A `Relation` plus `.delete()`. Returned by `Table.where(...)`.
-Inherits all the read operators from `Relation`, but only
-`.where` returns a `WritableScope` again — the others widen back
-to plain `Relation` and lose `.delete`.
+A `Relation` plus `.delete()` and `.update(attrs)`. Returned by
+`Table.where(...)`. Inherits all the read operators from
+`Relation`, but only `.where` returns a `WritableScope` again —
+the others widen back to plain `Relation` and lose both write
+methods. `.update(attrs)` is documented in
+[update.md](update.md); the rest of this page covers `.delete`.
 
 ### `.where(predicate)` (override)
 

@@ -27,7 +27,7 @@ Three thick files plus a sprinkle:
   and `WiredTable<T, S>`, which describe the runtime mutation
   defineSchema performs on each input Table.
 - **Per-class phantoms** — declared inline in `Relation`,
-  `Insert`, `Delete`, `WritableScope`, `SingleRow`,
+  `Insert`, `Update`, `Delete`, `WritableScope`, `SingleRow`,
   `SingleRowOrThrow`, `Column`, `AliasedColumn`, `Expression`,
   `JoinBuilder`. See [fluent-layer.md](fluent-layer.md).
 
