@@ -10,7 +10,7 @@
 // runtime by a `LIMIT 1` baked into the node by `Table.find`, and at
 // the type level by being a separate class from Relation.
 //
-// `DeletableSingleRow` is the subclass that `Table.find` actually
+// `WritableSingleRow` is the subclass that `Table.find` actually
 // returns — same SELECT path, plus a `.delete()` method that builds a
 // DELETE on the underlying primary-key predicate. Association-built
 // SingleRows (belongs-to chains in defineSchema) construct plain
@@ -65,7 +65,7 @@ export class SingleRow<Columns extends ColumnsShape> {
  * primary-key predicate already restricts the statement to at most
  * one row.
  */
-export class DeletableSingleRow<
+export class WritableSingleRow<
   Columns extends ColumnsShape,
 > extends SingleRow<Columns> {
   constructor(

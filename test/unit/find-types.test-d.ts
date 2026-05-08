@@ -6,7 +6,7 @@ import { expectTypeOf, test } from "vitest";
 import type { Database } from "../../src/executor/Database.js";
 import type { Delete } from "../../src/query/Delete.js";
 import type {
-  DeletableSingleRow,
+  WritableSingleRow,
   SingleRowOrThrow,
 } from "../../src/query/SingleRow.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
@@ -62,9 +62,9 @@ const tenantUsersComposite = defineTable(
 
 type UsersColumns = (typeof users)["_columns"];
 
-test("find returns a DeletableSingleRow over the table's columns", () => {
+test("find returns a WritableSingleRow over the table's columns", () => {
   expectTypeOf(users.find(1)).toEqualTypeOf<
-    DeletableSingleRow<UsersColumns>
+    WritableSingleRow<UsersColumns>
   >();
 });
 

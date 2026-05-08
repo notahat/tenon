@@ -2,7 +2,7 @@
 
 The user-facing classes that build AST nodes:
 `Relation`, `Insert`, `Delete`, `WritableScope`, `SingleRow`,
-`DeletableSingleRow`, `SingleRowOrThrow`, plus the
+`WritableSingleRow`, `SingleRowOrThrow`, plus the
 expression-side `Column`, `AliasedColumn`, `Expression`,
 `Ordering`, and `JoinBuilder`.
 
@@ -199,7 +199,7 @@ in this iteration.
 `TableRef` and pulls out the predicate list. The walk is local to
 the scope; nothing else in the codebase needs it.
 
-### `SingleRow<Columns>`, `DeletableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
+### `SingleRow<Columns>`, `WritableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
 
 Wrap a `RelationNode` that the type system promises will resolve
 to 0 or 1 rows. Built by `Table.find(id)`, which is conditionally
@@ -208,7 +208,7 @@ available on tables with a single-column primary key
 type-level `Record<never, never>`). The underlying AST is a
 `Where(TableRef, pk = $1)` wrapped in `Limit(1)`.
 
-`Table.find(id)` actually returns a `DeletableSingleRow` — a
+`Table.find(id)` actually returns a `WritableSingleRow` — a
 `SingleRow` subclass that adds a `.delete()` method. The subclass
 captures the target `TableRef` and the primary-key predicate
 explicitly, so `.delete()` can build a `DeleteNode` without
@@ -223,7 +223,7 @@ This split mirrors `Relation` / `WritableScope`: read-side and
 mutation-side capabilities live on different classes so the type
 system can withhold `.delete()` from values where it would be
 unsound. Belongs-to accessors wired by `defineSchema` (next
-section) construct plain `SingleRow`, not `DeletableSingleRow`,
+section) construct plain `SingleRow`, not `WritableSingleRow`,
 because their wrapped node is an inner-join relation rather than
 a flat `WHERE pk = ?` — turning that into a `DELETE` would need
 `DELETE USING` or a CTE, which is out of scope.
@@ -233,12 +233,12 @@ underlying node. The two classes differ only in how
 `Database.run` interprets the result: `SingleRow` resolves to
 `RowOf<C> | null`, `SingleRowOrThrow` to `RowOf<C>` (rejecting
 with `RowNotFoundError` when the SQL returns zero rows).
-`DeletableSingleRow` is a `SingleRow` subclass, so it matches the
+`WritableSingleRow` is a `SingleRow` subclass, so it matches the
 same `Database.run` overload — no separate dispatch branch. All
 three classes are exported from `src/query/SingleRow.ts`.
 
 Neither `SingleRow` nor `SingleRowOrThrow` has operator methods
-of its own; only `DeletableSingleRow` adds `.delete()`. The
+of its own; only `WritableSingleRow` adds `.delete()`. The
 association accessors (`posts.find(1).comments`,
 `comments.find(5).post`) are merged onto the SingleRow at runtime
 by `defineSchema` — see the next section. Bare SingleRows (built

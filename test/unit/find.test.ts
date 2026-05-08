@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { Delete } from "../../src/query/Delete.js";
 import {
-  DeletableSingleRow,
+  WritableSingleRow,
   RowNotFoundError,
   SingleRow,
   SingleRowOrThrow,
@@ -35,11 +35,11 @@ const users = defineTable(
 );
 
 describe("Table.find", () => {
-  it("returns a DeletableSingleRow value", () => {
-    expect(users.find(1)).toBeInstanceOf(DeletableSingleRow);
+  it("returns a WritableSingleRow value", () => {
+    expect(users.find(1)).toBeInstanceOf(WritableSingleRow);
   });
 
-  it("is also a SingleRow (DeletableSingleRow extends SingleRow)", () => {
+  it("is also a SingleRow (WritableSingleRow extends SingleRow)", () => {
     expect(users.find(1)).toBeInstanceOf(SingleRow);
   });
 
@@ -69,7 +69,7 @@ describe("SingleRow.orThrow", () => {
   });
 });
 
-describe("DeletableSingleRow.delete", () => {
+describe("WritableSingleRow.delete", () => {
   it("returns a Delete instance", () => {
     expect(users.find(1).delete()).toBeInstanceOf(Delete);
   });

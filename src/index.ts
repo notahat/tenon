@@ -18,7 +18,7 @@ export { Insert } from "./query/Insert.js";
 export { JoinBuilder } from "./query/JoinBuilder.js";
 export { Ordering } from "./query/Ordering.js";
 export {
-  DeletableSingleRow,
+  WritableSingleRow,
   RowNotFoundError,
   SingleRow,
   SingleRowOrThrow,

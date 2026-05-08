@@ -1,4 +1,4 @@
-# `SingleRow<Columns>`, `DeletableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
+# `SingleRow<Columns>`, `WritableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
 
 A pending query that the type system promises will return 0 or 1
 rows. Built by `Table.find(id)` (a primary-key lookup) and the
@@ -6,14 +6,14 @@ association accessors merged onto its result by `defineSchema`.
 
 ```ts
 import {
-  DeletableSingleRow,
+  WritableSingleRow,
   SingleRow,
   SingleRowOrThrow,
 } from "@notahat/tenon";
 ```
 
 You don't usually construct any of these directly. `Table.find(id)`
-produces a `DeletableSingleRow<Columns>` (a `SingleRow` subclass
+produces a `WritableSingleRow<Columns>` (a `SingleRow` subclass
 with a `.delete()` method); belongs-to accessors wired by
 `defineSchema` produce plain `SingleRow<Columns>` values; and
 `singleRow.orThrow()` produces a `SingleRowOrThrow<Columns>`. All
@@ -45,7 +45,7 @@ unchanged; only the type and `db.run`'s contract differ:
 | `SingleRow<C>` | `RowOf<C> \| null` |
 | `SingleRowOrThrow<C>` | `RowOf<C>` (rejects with `RowNotFoundError` when no row is returned) |
 
-## `DeletableSingleRow.delete()`
+## `WritableSingleRow.delete()`
 
 ```ts
 delete(): Delete<Columns, null>;
@@ -60,7 +60,7 @@ resolves to `{ rowCount: 0 | 1 }` — 0 when the row didn't exist,
 deleted row.
 
 `.delete()` is intentionally available **only** on the
-`DeletableSingleRow` returned by `Table.find(id)`. Belongs-to
+`WritableSingleRow` returned by `Table.find(id)`. Belongs-to
 association accessors return plain `SingleRow` because their
 underlying SQL is an inner join, not a flat `WHERE pk = ?` —
 deleting through a join shape is out of scope for v1. Mirrors the
