@@ -292,31 +292,49 @@ function buildBelongsToSingleRow(
   parent: AnyTableRuntime,
   fk: ForeignKey,
 ): SingleRow<ColumnsShape> {
+  // For a self-referential FK (parent and child are the same physical
+  // table — e.g. employees.manager_id -> employees.id) the join would
+  // emit the same physical name on both sides and Postgres would
+  // reject it with "table name specified more than once". Aliasing
+  // the child distinctly avoids that; for non-self FKs we leave both
+  // sides at their physical names so the SQL stays unsurprising.
+  const sameTable = samePhysicalTable(parent, child);
+  const parentAlias = parent._physicalName;
+  const childAlias = sameTable
+    ? `${child._physicalName}__child`
+    : child._physicalName;
   const parentRef = tableRefNode({
     schema: parent._schema,
     name: parent._physicalName,
     foreignKeys: parent._foreignKeys,
   });
-  const childRef = tableRefNode({
-    schema: child._schema,
-    name: child._physicalName,
-    foreignKeys: child._foreignKeys,
-  });
+  const childRef = sameTable
+    ? tableRefNode({
+        schema: child._schema,
+        name: child._physicalName,
+        alias: childAlias,
+        foreignKeys: child._foreignKeys,
+      })
+    : tableRefNode({
+        schema: child._schema,
+        name: child._physicalName,
+        foreignKeys: child._foreignKeys,
+      });
   const referencedColumn = fk.referencedColumns[0]!;
   const fkColumn = fk.columns[0]!;
   const joinPredicate = binaryOp(
     "=",
-    columnRef({ tableAlias: parent._physicalName, column: referencedColumn }),
-    columnRef({ tableAlias: child._physicalName, column: fkColumn }),
+    columnRef({ tableAlias: parentAlias, column: referencedColumn }),
+    columnRef({ tableAlias: childAlias, column: fkColumn }),
   );
   const wherePredicate = binaryOp(
     "=",
-    columnRef({ tableAlias: child._physicalName, column: childPkColumn }),
+    columnRef({ tableAlias: childAlias, column: childPkColumn }),
     parameter(childId),
   );
   const projectionItems = parent._columnNames.map((name) =>
     projectionItem(
-      columnRef({ tableAlias: parent._physicalName, column: name }),
+      columnRef({ tableAlias: parentAlias, column: name }),
       name,
     ),
   );
