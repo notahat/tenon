@@ -14,17 +14,14 @@ name it.
 ## Phantoms
 
 ```ts
-declare readonly _kind: "insert";
 declare readonly _columns: Columns;
 declare readonly _returning: Returning;
 ```
 
-`_kind` distinguishes `Insert` from `Relation` and `Delete` in
-`Database.run` overload resolution. `_columns` carries the source
-table's shape. `_returning` is `null` when no `RETURNING` clause
-is set (so `db.run` resolves to `{ rowCount }`) or a
-`ColumnsShape` when one is (so `db.run` resolves to
-`RowOf<Returning>[]`).
+`_columns` carries the source table's shape. `_returning` is
+`null` when no `RETURNING` clause is set (so `db.run` resolves to
+`{ rowCount }`) or a `ColumnsShape` when one is (so `db.run`
+resolves to `RowOf<Returning>[]`).
 
 ## `.returning(...items)`
 

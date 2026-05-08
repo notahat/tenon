@@ -107,8 +107,8 @@ A few rules to follow:
 Two classes:
 
 - `Delete<Columns, Returning>` wraps the AST node and exposes
-  `.returning(...)`. Phantoms `_kind`, `_columns`, `_returning`
-  carry through to overload resolution.
+  `.returning(...)`. Phantoms `_columns` and `_returning` carry
+  through to overload resolution.
 - `DeletableScope<Alias, Columns> extends Relation<Columns>`
   carries the where-narrowing chain and the eventual
   `.delete()`. Overrides `.where` so the scope stays alive
@@ -217,7 +217,7 @@ A few traps from the v1.8 work that are likely to repeat:
   Verify with a type-level test that `db.run(insert)` (no
   `.returning(...)`) resolves to `{ rowCount }` and
   `db.run(insert.returning(...))` resolves to rows.
-- **Phantom field placement.** `declare readonly _kind` lives
+- **Phantom field placement.** `declare readonly` phantoms live
   on the class, not on a `super` call or in the constructor.
   Inline declaration is what tsc looks at; runtime is happy
   either way (`declare` doesn't emit code).

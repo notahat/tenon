@@ -17,15 +17,13 @@ by `Table.where(predicate)`. `Delete` is returned by
 ### Phantoms
 
 ```ts
-declare readonly _kind: "delete";
 declare readonly _columns: Columns;
 declare readonly _returning: Returning;
 ```
 
-Same role as on [`Insert`](insert.md): `_kind` discriminates the
-class in `Database.run` overload resolution; `_returning` is
-`null` (no RETURNING clause; `db.run` resolves to `{ rowCount }`)
-or a `ColumnsShape` (`db.run` resolves to typed rows).
+Same role as on [`Insert`](insert.md): `_returning` is `null` (no
+RETURNING clause; `db.run` resolves to `{ rowCount }`) or a
+`ColumnsShape` (`db.run` resolves to typed rows).
 
 ### `.returning(...items)`
 

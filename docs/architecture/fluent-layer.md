@@ -36,14 +36,12 @@ class Relation<Columns, FKs = readonly []> {
 }
 
 class Insert<Columns, Returning> {
-  declare readonly _kind: "insert";
   declare readonly _columns: Columns;
   declare readonly _returning: Returning;
   // ...
 }
 
 class Delete<Columns, Returning> {
-  declare readonly _kind: "delete";
   declare readonly _columns: Columns;
   declare readonly _returning: Returning;
   // ...
@@ -91,7 +89,7 @@ two structurally identical runtime objects distinct in the type
 system, or to thread a generic parameter that has no runtime
 representation.
 
-Three uses:
+Two uses:
 
 - **Discriminating classes the runtime can't tell apart by
   shape.** `Insert<C, null>` and `Insert<C, R>` have the same
@@ -100,10 +98,10 @@ Three uses:
 - **Threading a generic forward.** `Relation<Columns>` doesn't
   store `Columns` at runtime — it's just an AST node — but
   operators need to compute new `Relation` types from it.
-- **Cross-class discriminators.** `_kind: "insert"` /
-  `_kind: "delete"` make `Insert` and `Delete` non-assignable to
-  each other at the type level even though they happen to share
-  some fields.
+
+`Insert` and `Delete` don't need a cross-class discriminator: each
+already wraps its own AST node type (`InsertNode` vs `DeleteNode`),
+so the structural difference is real, not just a phantom.
 
 The phantoms are documented inline in each class with `// Phantom:`
 comments.

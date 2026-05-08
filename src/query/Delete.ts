@@ -22,13 +22,10 @@ export class Delete<
   Columns extends ColumnsShape,
   Returning extends ColumnsShape | null,
 > {
-  // Phantoms: never read at runtime. `_kind` distinguishes Delete from
-  // Insert and Relation in `Database.run` overload resolution;
-  // `_columns` carries the source table's shape for type-machinery
-  // use; `_returning` is null when no RETURNING is set (so the run()
-  // overload picks the rowCount form) or the projected ColumnsShape
-  // when one is.
-  declare readonly _kind: "delete";
+  // Phantoms: never read at runtime. `_columns` carries the source
+  // table's shape for type-machinery use; `_returning` is null when no
+  // RETURNING is set (so the run() overload picks the rowCount form)
+  // or the projected ColumnsShape when one is.
   declare readonly _columns: Columns;
   declare readonly _returning: Returning;
 
