@@ -15,7 +15,7 @@ import type { Pool, PoolClient } from "pg";
 import { Delete } from "../query/Delete.js";
 import { Insert } from "../query/Insert.js";
 import type { Relation } from "../query/Relation.js";
-import type { RowOf } from "../query/types.js";
+import type { ForeignKeyTuple, RowOf } from "../query/types.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
 import { deleteToSql, insertToSql, relationToSql } from "../sql/serialise.js";
 
@@ -58,15 +58,20 @@ export class Database {
     insert: Insert<Columns, null>,
     client?: PoolClient,
   ): Promise<{ readonly rowCount: number }>;
-  run<Columns extends ColumnsShape>(
-    query: Relation<Columns> & {
-      readonly _columns: { readonly __tenonDuplicateColumns?: never };
+  run<Columns extends ColumnsShape, FKs extends ForeignKeyTuple = readonly []>(
+    query: Relation<Columns, FKs> & {
+      readonly _columns: {
+        readonly __tenonDuplicateColumns?: never;
+        readonly __tenonInferenceSelfJoin?: never;
+        readonly __tenonInferenceMissing?: never;
+        readonly __tenonInferenceAmbiguous?: never;
+      };
     },
     client?: PoolClient,
   ): Promise<RowOf<Columns>[]>;
   async run(
     query:
-      | Relation<ColumnsShape>
+      | Relation<ColumnsShape, ForeignKeyTuple>
       | Insert<ColumnsShape, ColumnsShape | null>
       | Delete<ColumnsShape, ColumnsShape | null>,
     client?: PoolClient,

@@ -146,3 +146,133 @@ test(".on() clears the self-join brand", () => {
   const ok = left.innerJoin(right).on(left.id.eq(right.id)).project(left.id);
   void db.run(ok);
 });
+
+const usersOnlyId = defineTable("public", "users_only_id", {
+  id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+});
+
+test("brand fires when no FK connects the two tables", () => {
+  const orphan = defineTable("public", "orphans", {
+    name: columnType<string, "text">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
+  });
+  const join = orphan.innerJoin(usersOnlyId);
+  // @ts-expect-error missing FK
+  void db.run(join);
+});
+
+test("brand fires when more than one FK connects the two tables", () => {
+  const accounts = defineTable(
+    "public",
+    "accounts",
+    {
+      creator_id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+      owner_id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+    },
+    [
+      {
+        name: "accounts_creator_id_fkey",
+        columns: ["creator_id"],
+        referencedSchema: "public",
+        referencedTable: "users_only_id",
+        referencedColumns: ["id"],
+      },
+      {
+        name: "accounts_owner_id_fkey",
+        columns: ["owner_id"],
+        referencedSchema: "public",
+        referencedTable: "users_only_id",
+        referencedColumns: ["id"],
+      },
+    ] as const,
+  );
+  const join = accounts.innerJoin(usersOnlyId);
+  // @ts-expect-error ambiguous FK
+  void db.run(join);
+});
+
+test("a unique single-column FK does not trigger any brand", () => {
+  const postsAuthor = defineTable(
+    "public",
+    "posts_author",
+    {
+      author_id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+    },
+    [
+      {
+        name: "posts_author_id_fkey",
+        columns: ["author_id"],
+        referencedSchema: "public",
+        referencedTable: "users_only_id",
+        referencedColumns: ["id"],
+      },
+    ] as const,
+  );
+  void db.run(postsAuthor.innerJoin(usersOnlyId));
+});
+
+test(".on() clears the missing-FK brand", () => {
+  const orphan = defineTable("public", "orphans2", {
+    id: columnType<number, "int4">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
+  });
+  const ok = orphan
+    .innerJoin(usersOnlyId)
+    .on(orphan.id.eq(usersOnlyId.id))
+    .project(orphan.id);
+  void db.run(ok);
+});
+
+test("composite FKs are skipped — they don't satisfy the single match", () => {
+  const events = defineTable(
+    "public",
+    "events",
+    {
+      user_id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+      tenant_id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+    },
+    [
+      {
+        name: "events_user_fkey",
+        columns: ["user_id", "tenant_id"],
+        referencedSchema: "public",
+        referencedTable: "users_only_id",
+        referencedColumns: ["id", "tenant"],
+      },
+    ] as const,
+  );
+  const join = events.innerJoin(usersOnlyId);
+  // @ts-expect-error composite FK isn't single-column, so the
+  // inference path treats this as a missing match.
+  void db.run(join);
+});

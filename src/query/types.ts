@@ -165,23 +165,134 @@ export type SelfJoinBrand<Schema extends string, Name extends string> = {
 };
 
 /**
- * Compute the merged-columns shape for a JoinBuilder, intersected
- * with a self-join brand if the two sides match physically. The
- * brand surfaces at `db.run(...)` exactly like the duplicate-column
- * brand. Calling `.on(predicate)` returns plain `MergedColumns`
- * (no brand) so an explicit predicate clears the error.
+ * Brand intersected onto a JoinBuilder's merged-columns shape when
+ * no foreign key connects the two sides — i.e. zero matches in
+ * either direction.
  */
-export type MergedColumnsWithFkBrand<
-  L extends ColumnsShape,
-  R extends ColumnsShape,
+export type MissingFkBrand<
   LSchema extends string,
   LName extends string,
   RSchema extends string,
   RName extends string,
-> =
-  IsSamePhysicalTable<LSchema, LName, RSchema, RName> extends true
-    ? MergedColumns<L, R> & SelfJoinBrand<LSchema, LName>
-    : MergedColumns<L, R>;
+> = {
+  readonly __tenonInferenceMissing: `tenon: cannot infer ON predicate; no foreign key between ${LSchema}.${LName} and ${RSchema}.${RName}; call .on(...) explicitly`;
+};
+
+/**
+ * Brand intersected onto a JoinBuilder's merged-columns shape when
+ * more than one foreign key connects the two sides — the inference
+ * cannot pick one without guessing.
+ */
+export type AmbiguousFkBrand<
+  LSchema extends string,
+  LName extends string,
+  RSchema extends string,
+  RName extends string,
+> = {
+  readonly __tenonInferenceAmbiguous: `tenon: cannot infer ON predicate; ambiguous foreign keys between ${LSchema}.${LName} and ${RSchema}.${RName}; call .on(...) explicitly`;
+};
+
+/**
+ * Tuple of single-column FK records in `FKs` whose
+ * `referencedSchema` and `referencedTable` match the target. Used
+ * twice (once per direction) to count cross-table matches at the
+ * type level.
+ */
+type FkMatches<
+  FKs extends ForeignKeyTuple,
+  TargetSchema extends string,
+  TargetName extends string,
+  Accumulator extends readonly unknown[] = readonly [],
+> = FKs extends readonly [
+  infer Head extends ForeignKey,
+  ...infer Tail extends ForeignKeyTuple,
+]
+  ? Head["referencedSchema"] extends TargetSchema
+    ? Head["referencedTable"] extends TargetName
+      ? Head["columns"]["length"] extends 1
+        ? FkMatches<
+            Tail,
+            TargetSchema,
+            TargetName,
+            readonly [...Accumulator, Head]
+          >
+        : FkMatches<Tail, TargetSchema, TargetName, Accumulator>
+      : FkMatches<Tail, TargetSchema, TargetName, Accumulator>
+    : FkMatches<Tail, TargetSchema, TargetName, Accumulator>
+  : Accumulator;
+
+/**
+ * All single-column FK matches between the two sides, in either
+ * direction. The length is what the brand check counts: 0 →
+ * missing, 1 → ok, > 1 → ambiguous.
+ */
+type MatchesBetween<
+  LFKs extends ForeignKeyTuple,
+  LSchema extends string,
+  LName extends string,
+  RFKs extends ForeignKeyTuple,
+  RSchema extends string,
+  RName extends string,
+> = readonly [
+  ...FkMatches<LFKs, RSchema, RName>,
+  ...FkMatches<RFKs, LSchema, LName>,
+];
+
+/**
+ * Compute the merged-columns shape for a JoinBuilder, intersected
+ * with whichever inference brand applies. Order of checks:
+ *   1. Any of the four identity generics is the wide `string` type
+ *      (e.g. the left side was a chained relation, not a Table) →
+ *      no brand. Inference is left to runtime.
+ *   2. Self-join: same physical (schema, name) on both sides.
+ *   3. Missing FK: zero single-column matches in either direction.
+ *   4. Ambiguous FK: more than one match.
+ *   5. Otherwise: plain merged columns, no brand.
+ *
+ * Calling `.on(predicate)` on the JoinBuilder returns plain
+ * `MergedColumns` (no brand), so an explicit predicate clears any
+ * inference error.
+ */
+export type MergedColumnsWithFkBrand<
+  L extends ColumnsShape,
+  R extends ColumnsShape,
+  LFKs extends ForeignKeyTuple,
+  LSchema extends string,
+  LName extends string,
+  RFKs extends ForeignKeyTuple,
+  RSchema extends string,
+  RName extends string,
+> = string extends LSchema
+  ? MergedColumns<L, R>
+  : string extends LName
+    ? MergedColumns<L, R>
+    : string extends RSchema
+      ? MergedColumns<L, R>
+      : string extends RName
+        ? MergedColumns<L, R>
+        : IsSamePhysicalTable<LSchema, LName, RSchema, RName> extends true
+          ? MergedColumns<L, R> & SelfJoinBrand<LSchema, LName>
+          : MatchesBetween<
+                LFKs,
+                LSchema,
+                LName,
+                RFKs,
+                RSchema,
+                RName
+              >["length"] extends 0
+            ? MergedColumns<L, R> &
+                MissingFkBrand<LSchema, LName, RSchema, RName>
+            : MatchesBetween<
+                  LFKs,
+                  LSchema,
+                  LName,
+                  RFKs,
+                  RSchema,
+                  RName
+                >["length"] extends 1
+              ? MergedColumns<L, R>
+              : MergedColumns<L, R> &
+                  AmbiguousFkBrand<LSchema, LName, RSchema, RName>;
 
 /** The set of column names shared between two columns shapes. */
 export type DuplicateColumnNames<L, R> = Extract<keyof L & keyof R, string>;

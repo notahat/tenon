@@ -148,8 +148,10 @@ export class JoinBuilder<
   MergedColumnsWithFkBrand<
     Left,
     Right,
+    LFKs,
     LSchema,
     LPhysicalName,
+    RFKs,
     RSchema,
     RPhysicalName
   >,
