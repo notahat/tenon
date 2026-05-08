@@ -12,7 +12,7 @@ class Database {
 
 ## Overload dispatch
 
-`run` has nine overloads, declared **before** the implementation
+`run` has eight overloads, declared **before** the implementation
 signature:
 
 ```ts
@@ -22,8 +22,7 @@ run<C, R>(statement: Update<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
 run<C>(statement: Update<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
 run<C, R>(statement: Insert<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
 run<C>(statement: Insert<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
-run<C>(statement: SingleRowOrThrow<C>, client?: PoolClient): Promise<RowOf<C>>;
-run<C>(statement: SingleRow<C>, client?: PoolClient): Promise<RowOf<C> | null>;
+run<C>(statement: SingleRow<C>, client?: PoolClient): Promise<RowOf<C>>;
 run<C>(statement: Relation<C> & { ...no-brand check... }, client?: PoolClient): Promise<RowOf<C>[]>;
 ```
 
@@ -34,10 +33,6 @@ Order matters within a class:
   null` one. TypeScript picks the first overload that fits;
   putting the more-specific overload first means `.returning(...)`
   calls resolve to the rows form, not the rowCount form.
-- `SingleRowOrThrow` comes before `SingleRow` for the same
-  reason: the throwing variant has the narrower return type
-  (`RowOf<C>`), so listing it first lets `find(id).orThrow()`
-  pick it over the nullable form.
 - The `Relation` overload comes last. Its argument type
   intersects in a structural check
   (`{ readonly _columns: { readonly __tenonDuplicateColumns?: never } }`)
@@ -54,8 +49,8 @@ top to bottom, so keep the order consistent.
 needs help from a phantom field: both wrap a `RelationNode`, so
 `Relation<C>` is structurally assignable to `SingleRow<C>`.
 Without a discriminator, TypeScript would happily match the
-`SingleRow` overload for plain Relations, returning `RowOf<C> |
-null` instead of `RowOf<C>[]`. The
+`SingleRow` overload for plain Relations, returning `RowOf<C>`
+instead of `RowOf<C>[]`. The
 `declare readonly _kind: "SingleRow"` phantom on `SingleRow`
 breaks that match — Relation has no `_kind` field, so it can't
 satisfy the SingleRow overload. (This is the cross-class
@@ -82,17 +77,12 @@ async run(statement, client?) {
   if (statement instanceof Delete) {
     // identical shape, deleteToSql instead
   }
-  if (statement instanceof SingleRowOrThrow) {
+  if (statement instanceof SingleRow) {
     const compiled = relationToSql(statement.node);
     const result = await runner.query(compiled.text, [...compiled.params]);
     const first = result.rows[0];
     if (first === undefined) throw new RowNotFoundError();
     return first;
-  }
-  if (statement instanceof SingleRow) {
-    const compiled = relationToSql(statement.node);
-    const result = await runner.query(compiled.text, [...compiled.params]);
-    return result.rows[0] ?? null;
   }
   // fall through: it's a Relation
   const compiled = relationToSql(statement.node);
@@ -110,16 +100,13 @@ The `Insert`, `Update`, and `Delete` branches all check
 form and the rows form. That's the runtime mirror of the
 overloads on `_returning`.
 
-The `SingleRow` and `SingleRowOrThrow` branches share the same
-`relationToSql` path as the `Relation` branch — there is no
-SingleRow-specific AST node — and differ only in how they
-unwrap the result rows. The `SingleRowOrThrow` check has to
-come **before** `SingleRow`: `SingleRowOrThrow` is its own
-class, but if it inherited from `SingleRow` it would also pass
-`instanceof SingleRow` and silently route through the wrong
-branch. They don't inherit from each other today, so the order
-is style only — but flipping it would be a footgun if that
-relationship ever changes.
+The `SingleRow` branch shares the same `relationToSql` path as the
+`Relation` branch — there is no SingleRow-specific AST node — and
+differs only in how it unwraps the result rows. `WritableSingleRow`
+extends `SingleRow`, so `instanceof SingleRow` covers both; the
+DELETE / UPDATE built off `WritableSingleRow.delete()` /
+`.update(...)` are dispatched through their own branches because
+those are `Delete` / `Update` instances, not SingleRow.
 
 ## `QueryRunner`
 

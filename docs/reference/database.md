@@ -18,7 +18,7 @@ the caller is responsible for `pool.end()`.
 
 ## `db.run(statement, client?)`
 
-Compiles `statement` to SQL and runs it. Seven overloads, picked
+Compiles `statement` to SQL and runs it. Eight overloads, picked
 by the runtime kind of `statement`:
 
 | Argument                                     | Resolves to                              |
@@ -26,10 +26,11 @@ by the runtime kind of `statement`:
 | `Relation<Columns>` (no duplicate-col brand) | `Promise<RowOf<Columns>[]>`              |
 | `Insert<Columns, null>`                      | `Promise<{ readonly rowCount: number }>` |
 | `Insert<Columns, Returning>`                 | `Promise<RowOf<Returning>[]>`            |
+| `Update<Columns, null>`                      | `Promise<{ readonly rowCount: number }>` |
+| `Update<Columns, Returning>`                 | `Promise<RowOf<Returning>[]>`            |
 | `Delete<Columns, null>`                      | `Promise<{ readonly rowCount: number }>` |
 | `Delete<Columns, Returning>`                 | `Promise<RowOf<Returning>[]>`            |
-| `SingleRow<Columns>`                         | `Promise<RowOf<Columns> \| null>`        |
-| `SingleRowOrThrow<Columns>`                  | `Promise<RowOf<Columns>>` (rejects with `RowNotFoundError` when no row matches) |
+| `SingleRow<Columns>`                         | `Promise<RowOf<Columns>>` (rejects with `RowNotFoundError` when no row matches) |
 
 Optional `client: PoolClient` routes through a specific pooled
 client — typically one already inside a caller-managed
@@ -67,5 +68,5 @@ await pool.end();
 - [Running queries guide](../guide/running-queries.md) for the
   transaction passthrough and error semantics.
 - [`RowOf`](types.md#rowof) for the per-row type produced.
-- [`SingleRow`, `SingleRowOrThrow`, `RowNotFoundError`](single-row.md) —
+- [`SingleRow`, `WritableSingleRow`, `RowNotFoundError`](single-row.md) —
   primary-key lookup results from `Table.find(id)`.

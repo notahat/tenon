@@ -154,17 +154,21 @@ table.
 ### `.find(id)` (single-column PK only)
 
 ```ts
-find(id: Columns[PkColumn]["_tsType"]): SingleRow<Columns>;
+find(id: Columns[PkColumn]["_tsType"]): WritableSingleRow<Columns>;
 ```
 
 Look up a row by its primary key. Available only when `PK` is a
 single-column tuple — composite or absent PKs omit `find` from
 the type entirely (`Property 'find' does not exist on...`).
 
-The returned `SingleRow` runs to `RowOf<Columns> | null` via
-`db.run`, or `RowOf<Columns>` after `.orThrow()`. Once the table
-participates in `defineSchema`, the returned SingleRow also
-exposes association accessors.
+The returned `WritableSingleRow` runs to `RowOf<Columns>` via
+`db.run`, throwing `RowNotFoundError` if no row matches. There is
+no nullable variant — callers who want to tolerate a missing row
+should drop down to `.where(...)` and inspect the array. Chain
+`.delete()` or `.update(attrs)` to build a write on the same
+primary-key predicate. Once the table participates in
+`defineSchema`, the returned SingleRow also exposes association
+accessors.
 
 See [`SingleRow`](single-row.md) and [`defineSchema`](define-schema.md).
 

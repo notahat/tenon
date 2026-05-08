@@ -2,7 +2,7 @@
 
 The user-facing classes that build AST nodes:
 `Relation`, `Insert`, `Update`, `Delete`, `WritableScope`,
-`SingleRow`, `WritableSingleRow`, `SingleRowOrThrow`, plus the
+`SingleRow`, `WritableSingleRow`, plus the
 expression-side `Column`, `AliasedColumn`, `Expression`,
 `Ordering`, and `JoinBuilder`.
 
@@ -12,9 +12,9 @@ thread compile-time information forward.
 
 ## Why classes
 
-`Relation`, `Insert`, `Update`, `Delete`, `SingleRow`, and
-`SingleRowOrThrow` are classes (not plain discriminated unions
-of POJOs) for one reason: `Database.run` dispatches by
+`Relation`, `Insert`, `Update`, `Delete`, and `SingleRow` are
+classes (not plain discriminated unions of POJOs) for one
+reason: `Database.run` dispatches by
 `instanceof`. The runtime needs to ask "is this an Insert?" /
 "is this an Update?" / "is this a Delete?" / "is this a
 SingleRow?" without reading a
@@ -58,12 +58,6 @@ class Delete<Columns, Returning> {
 
 class SingleRow<Columns> {
   declare readonly _kind: "SingleRow";
-  declare readonly _columns: Columns;
-  // ...
-}
-
-class SingleRowOrThrow<Columns> {
-  declare readonly _kind: "SingleRowOrThrow";
   declare readonly _columns: Columns;
   // ...
 }
@@ -122,13 +116,11 @@ Three uses:
 - **Cross-class discrimination when AST nodes overlap.**
   `SingleRow<C>` and `Relation<C>` both wrap a `RelationNode`,
   so they're structurally identical from TypeScript's point of
-  view. The `_kind: "SingleRow"` / `_kind: "SingleRowOrThrow"`
-  phantoms keep `Database.run`'s SingleRow overloads from also
-  matching a plain Relation. `Insert`, `Update`, and `Delete`
-  don't need
-  this trick — each wraps its own AST node type
-  (`InsertNode` vs `UpdateNode` vs `DeleteNode`), so the
-  structural difference is real already.
+  view. The `_kind: "SingleRow"` phantom keeps `Database.run`'s
+  SingleRow overload from also matching a plain Relation.
+  `Insert`, `Update`, and `Delete` don't need this trick — each
+  wraps its own AST node type (`InsertNode` vs `UpdateNode` vs
+  `DeleteNode`), so the structural difference is real already.
 
 The phantoms are documented inline in each class with `// Phantom:`
 comments.
@@ -216,12 +208,12 @@ walk is local to the scope; nothing else in the codebase needs it.
 `.update` additionally flattens the attrs object into an ordered
 list of `UpdateAssignment`s so the SET clause is deterministic.
 
-### `SingleRow<Columns>`, `WritableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
+### `SingleRow<Columns>` and `WritableSingleRow<Columns>`
 
 Wrap a `RelationNode` that the type system promises will resolve
-to 0 or 1 rows. Built by `Table.find(id)`, which is conditionally
-available on tables with a single-column primary key
-(composite or absent PKs omit the method entirely via a
+to exactly one row. Built by `Table.find(id)`, which is
+conditionally available on tables with a single-column primary
+key (composite or absent PKs omit the method entirely via a
 type-level `Record<never, never>`). The underlying AST is a
 `Where(TableRef, pk = $1)` wrapped in `Limit(1)`.
 
@@ -246,18 +238,16 @@ relation rather than a flat `WHERE pk = ?` — turning that into a
 `DELETE`/`UPDATE` would need `... USING` or a CTE, which is out
 of scope.
 
-`SingleRow.orThrow()` returns a `SingleRowOrThrow` over the same
-underlying node. The two classes differ only in how
-`Database.run` interprets the result: `SingleRow` resolves to
-`RowOf<C> | null`, `SingleRowOrThrow` to `RowOf<C>` (rejecting
-with `RowNotFoundError` when the SQL returns zero rows).
-`WritableSingleRow` is a `SingleRow` subclass, so it matches the
-same `Database.run` overload — no separate dispatch branch. All
-three classes are exported from `src/query/SingleRow.ts`.
+`db.run(singleRow)` resolves to `RowOf<C>` and rejects with
+`RowNotFoundError` if the SQL returns zero rows. There is no
+nullable variant — callers who want to tolerate a missing row
+should drop down to `.where(...)` and inspect the array.
+`WritableSingleRow` is a `SingleRow` subclass, so the dispatch
+branch is shared. Both classes are exported from
+`src/query/SingleRow.ts`.
 
-Neither `SingleRow` nor `SingleRowOrThrow` has operator methods
-of its own; only `WritableSingleRow` adds `.delete()` and
-`.update(attrs)`. The
+`SingleRow` has no operator methods of its own; only
+`WritableSingleRow` adds `.delete()` and `.update(attrs)`. The
 association accessors (`posts.find(1).comments`,
 `comments.find(5).post`) are merged onto the SingleRow at runtime
 by `defineSchema` — see the next section. Bare SingleRows (built

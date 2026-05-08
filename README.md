@@ -47,8 +47,9 @@ const stories = await db.run(
 // generated schema runs every Table through `defineSchema(...)`,
 // which merges has-many and belongs-to walks onto the result of
 // `Table.find(id)`.
-const post = await db.run(posts.find(1).orThrow());
+const post = await db.run(posts.find(1));
 //    ^? { id: number; authorId: number; body: string }
+// Throws RowNotFoundError if no row matches.
 
 const comments = await db.run(posts.find(1).comments);
 //    ^? Array<{ id: number; postId: number; body: string }>

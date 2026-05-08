@@ -28,8 +28,8 @@ Three thick files plus a sprinkle:
   defineSchema performs on each input Table.
 - **Per-class phantoms** — declared inline in `Relation`,
   `Insert`, `Update`, `Delete`, `WritableScope`, `SingleRow`,
-  `SingleRowOrThrow`, `Column`, `AliasedColumn`, `Expression`,
-  `JoinBuilder`. See [fluent-layer.md](fluent-layer.md).
+  `Column`, `AliasedColumn`, `Expression`, `JoinBuilder`. See
+  [fluent-layer.md](fluent-layer.md).
 
 ## `ColumnType<TsType, SqlTag, Nullable, HasDefault, IsGenerated>`
 

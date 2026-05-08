@@ -1,29 +1,27 @@
-# `SingleRow<Columns>`, `WritableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
+# `SingleRow<Columns>` and `WritableSingleRow<Columns>`
 
-A pending query that the type system promises will return 0 or 1
-rows. Built by `Table.find(id)` (a primary-key lookup) and the
-association accessors merged onto its result by `defineSchema`.
+A pending query that the type system promises will return exactly
+one row. Built by `Table.find(id)` (a primary-key lookup) and the
+association accessors merged onto its result by `defineSchema`. If
+the underlying query returns zero rows, `db.run(...)` rejects with
+`RowNotFoundError` — there is no nullable variant. Callers who want
+to tolerate a missing row should drop down to `.where(...)` and
+inspect the resulting array.
 
 ```ts
-import {
-  WritableSingleRow,
-  SingleRow,
-  SingleRowOrThrow,
-} from "@notahat/tenon";
+import { WritableSingleRow, SingleRow } from "@notahat/tenon";
 ```
 
-You don't usually construct any of these directly. `Table.find(id)`
-produces a `WritableSingleRow<Columns>` (a `SingleRow` subclass
-with `.delete()` and `.update(attrs)` methods); belongs-to
-accessors wired by `defineSchema` produce plain `SingleRow<Columns>`
-values; and `singleRow.orThrow()` produces a
-`SingleRowOrThrow<Columns>`. All three classes are exported so
-test code and helpers can name them.
+You don't usually construct either of these directly. `Table.find(id)`
+produces a `WritableSingleRow<Columns>` (a `SingleRow` subclass with
+`.delete()` and `.update(attrs)` methods); belongs-to accessors wired
+by `defineSchema` produce plain `SingleRow<Columns>` values. Both
+classes are exported so test code and helpers can name them.
 
 ## Phantoms
 
 ```ts
-declare readonly _kind: "SingleRow";   // or "SingleRowOrThrow"
+declare readonly _kind: "SingleRow";
 declare readonly _columns: Columns;
 ```
 
@@ -32,19 +30,12 @@ declare readonly _columns: Columns;
 overload set would otherwise also match a plain `Relation`.
 `_columns` carries the row shape forward to `db.run`.
 
-## `.orThrow()`
-
-```ts
-orThrow(): SingleRowOrThrow<Columns>;
-```
-
-Promote a `SingleRow` to a `SingleRowOrThrow`. The wrapped node is
-unchanged; only the type and `db.run`'s contract differ:
+## `db.run` contract
 
 | Value | `db.run(...)` resolves to |
 |---|---|
-| `SingleRow<C>` | `RowOf<C> \| null` |
-| `SingleRowOrThrow<C>` | `RowOf<C>` (rejects with `RowNotFoundError` when no row is returned) |
+| `SingleRow<C>` | `RowOf<C>` (rejects with `RowNotFoundError` when no row is returned) |
+| `WritableSingleRow<C>` | `RowOf<C>` (same as `SingleRow<C>`) |
 
 ## `WritableSingleRow.delete()`
 
@@ -108,11 +99,10 @@ const result = await db.run(
 import { RowNotFoundError } from "@notahat/tenon";
 ```
 
-Thrown by `db.run(singleRow.orThrow())` when the underlying SQL
-returns zero rows. `Error` subclass with `name === "RowNotFoundError"`.
-Tenon's other "not found" paths return `null` instead; this error
-exists for callers who want a control-flow exception at the call
-site.
+Thrown by `db.run(singleRow)` when the underlying SQL returns zero
+rows. `Error` subclass with `name === "RowNotFoundError"`. It is
+the only signal a missing row produces — there is no nullable PK
+lookup.
 
 ## Example
 
@@ -122,13 +112,15 @@ import { schema } from "./schema";
 
 const db = new Database(pool);
 
-// Returns the user row, or null if no user has id 1.
-const user = await db.run(schema.users.find(1));
-//    ^? { id: number; email: string; ... } | null
-
 // Throws RowNotFoundError if the user doesn't exist.
-const required = await db.run(schema.users.find(1).orThrow());
+const user = await db.run(schema.users.find(1));
 //    ^? { id: number; email: string; ... }
+
+// Tolerate-missing case: query through .where and read the array.
+const [maybeUser] = await db.run(
+  schema.users.where(schema.users.id.eq(1)),
+);
+//      ^? { id: number; email: string; ... } | undefined
 ```
 
 ## Association accessors
@@ -136,3 +128,6 @@ const required = await db.run(schema.users.find(1).orThrow());
 `defineSchema` merges association accessors onto the SingleRow
 returned by `find`. See [`defineSchema`](define-schema.md) for the
 naming rules and the `db.run` typing of has-many vs belongs-to.
+Belongs-to accessors throw on missing parent (including the case
+where the FK column itself is null) — callers with nullable FKs
+must check the scalar before walking the accessor.

@@ -25,7 +25,7 @@ Per-symbol API reference for every public export of
   `WritableSingleRow.update`.
 - [`Delete`, `WritableScope`](delete.md) — DELETE statements
   with optional `RETURNING` and the empty-WHERE guard.
-- [`SingleRow`, `SingleRowOrThrow`, `RowNotFoundError`](single-row.md) —
+- [`SingleRow`, `WritableSingleRow`, `RowNotFoundError`](single-row.md) —
   primary-key lookup results from `Table.find(id)`.
 - [`scope`, `Scope`](scope.md) — the `scope(...)` factory and
   type alias.

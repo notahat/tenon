@@ -30,17 +30,17 @@ import { posts, comments, users } from "./schema";
 
 const db = new Database(pool);
 
+// Look up by primary key. Throws RowNotFoundError on miss.
+const post = await db.run(posts.find(1));
+//    ^? { id: number; author_id: number; ... }
+
 // Belongs-to: walk from a single comment to its parent post.
 const parent = await db.run(comments.find(5).post);
-//    ^? { id: number; author_id: number; ... } | null
+//    ^? { id: number; author_id: number; ... }
 
 // Has-many: list every comment on a single post.
 const list = await db.run(posts.find(1).comments);
 //    ^? { id: number; post_id: number; ... }[]
-
-// orThrow: skip the null and reject when not found.
-const required = await db.run(comments.find(5).orThrow());
-//    ^? { id: number; ... }
 
 // Delete by primary key.
 const result = await db.run(posts.find(1).delete());
@@ -61,6 +61,11 @@ SingleRow has two lookups baked in:
 - The primary-key WHERE: `users.find(1)` -> `WHERE users.id = $1
   LIMIT 1`.
 - Association accessors merged on by `defineSchema`.
+
+`db.run(table.find(id))` resolves to `RowOf<Columns>` and rejects
+with `RowNotFoundError` if no row matches — there is no nullable
+variant. To tolerate a missing row, use `.where(table.id.eq(id))`
+and inspect the returned array.
 
 Composite or missing primary keys omit `find` from the Table type
 (standard "property does not exist" error). Use `.where(...)`
@@ -115,8 +120,20 @@ compile. Their underlying SQL is an inner join, not a flat
 for v1. To delete the parent, follow the FK manually:
 
 ```ts
-const post = await db.run(comments.find(5).post.orThrow());
+const post = await db.run(comments.find(5).post);
 await db.run(posts.find(post.id).delete());
+```
+
+Belongs-to accessors throw on miss too — including the case where
+the FK column itself is null. Callers with nullable FKs must
+inspect the scalar (`comment.post_id`) before walking:
+
+```ts
+const comment = await db.run(comments.find(5));
+if (comment.post_id !== null) {
+  const post = await db.run(comments.find(5).post);
+  // ...
+}
 ```
 
 ## What you can't do (yet)
@@ -130,9 +147,6 @@ await db.run(posts.find(post.id).delete());
 - **`findBy({ ... })`** for non-PK lookups. Use
   `users.where(users.email.eq("...")).limit(1)` and read the
   array.
-- **`update()`** on `find(id)` (or anywhere else). Update isn't
-  modelled in tenon yet; `delete()` is the only mutation you can
-  reach from a `find` anchor today.
 - **Composite primary keys.** `find` is omitted; use the
   appropriate `where(...)` chain.
 - **Accessors on plain `Relation` chains** (e.g.

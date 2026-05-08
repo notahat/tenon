@@ -50,8 +50,11 @@ the referenced table's name verbatim if there's no `_id` suffix.
 | Accessor | `db.run(accessor)` resolves to |
 |---|---|
 | Has-many (e.g. `posts.find(1).comments`) | `RowOf<commentsColumns>[]` |
-| Belongs-to (e.g. `comments.find(5).post`) | `RowOf<postsColumns> \| null` |
-| Belongs-to + `.orThrow()` | `RowOf<postsColumns>` |
+| Belongs-to (e.g. `comments.find(5).post`) | `RowOf<postsColumns>` (rejects with `RowNotFoundError` on miss) |
+
+Belongs-to throws on miss — including the case where the FK column
+itself is null. Callers with nullable FKs must inspect the scalar
+(`comment.post_id`) before walking the accessor.
 
 ## Skip rules
 
