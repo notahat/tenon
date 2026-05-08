@@ -10,9 +10,13 @@
 // per-row TS types (those flow from the columns map's element types).
 
 import { deleteNode } from "../ast/delete.js";
+import { binaryOp, parameter } from "../ast/expression.js";
 import { insertColumnValue, insertNode } from "../ast/insert.js";
-import { parameter } from "../ast/expression.js";
-import { tableRef, where as whereNode } from "../ast/relation.js";
+import {
+  limit as limitNode,
+  tableRef,
+  where as whereNode,
+} from "../ast/relation.js";
 import { Column } from "../query/Column.js";
 import { Delete } from "../query/Delete.js";
 import { DeletableScope } from "../query/DeletableScope.js";
@@ -20,12 +24,34 @@ import type { Expression } from "../query/Expression.js";
 import { Insert } from "../query/Insert.js";
 import { Relation } from "../query/Relation.js";
 import type { JoinBuilder } from "../query/Relation.js";
+import { SingleRow } from "../query/SingleRow.js";
 import type { ForeignKeyTuple, InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
 import type { PrimaryKey } from "./primaryKey.js";
 
 /** Default primary key when none is supplied: an empty column tuple. */
 const EMPTY_PRIMARY_KEY: PrimaryKey = { columns: [] };
+
+/**
+ * Type-level shape of `Table.find(id)`. Available only when the
+ * primary key is single-column; for empty or composite keys this
+ * resolves to an empty type so the method is absent from the Table
+ * surface.
+ */
+type FindMethod<Columns extends ColumnsShape, PK extends PrimaryKey> =
+  PK extends { readonly columns: readonly [infer Col extends string] }
+    ? Col extends keyof Columns
+      ? {
+          /**
+           * Look up a row by its primary key. Returns a SingleRow that
+           * runs to `RowOf<Columns> | null`, or `RowOf<Columns>` after
+           * `.orThrow()`. Available only on tables with a single-column
+           * primary key.
+           */
+          find(id: Columns[Col]["_tsType"]): SingleRow<Columns>;
+        }
+      : Record<never, never>
+    : Record<never, never>;
 
 /**
  * The shape of a defined table: a Relation with column accessors
@@ -127,7 +153,7 @@ export type Table<
      * table; otherwise narrow with `.where(...)` first.
      */
     deleteAll(): Delete<Columns, null>;
-  };
+  } & FindMethod<Columns, PK>;
 
 /**
  * Define a table. The default alias for column qualification is the
@@ -243,5 +269,34 @@ function buildTable<
       );
     },
   });
-  return relation as Table<Alias, Columns, FKs, PK, Schema, PhysicalName>;
+  // `find` is added only when the primary key is single-column. The
+  // `FindMethod` type-level helper makes the same call: empty / composite
+  // PKs see no method on the Table type, and we mirror that at runtime.
+  if (primaryKey.columns.length === 1) {
+    const pkColumn = primaryKey.columns[0]!;
+    Object.assign(relation, {
+      find(id: unknown): SingleRow<Columns> {
+        const predicate = binaryOp(
+          "=",
+          accessors[pkColumn]!.node,
+          parameter(id),
+        );
+        return new SingleRow<Columns>(
+          limitNode(whereNode(node, predicate), 1),
+        );
+      },
+    });
+  }
+  // The cast goes through `unknown` because adding `& FindMethod<...>`
+  // makes Table sufficiently distinct from Relation that TypeScript
+  // refuses a direct assertion. The Object.assign calls above install
+  // every required field; the cast is the API the caller sees.
+  return relation as unknown as Table<
+    Alias,
+    Columns,
+    FKs,
+    PK,
+    Schema,
+    PhysicalName
+  >;
 }

@@ -17,6 +17,11 @@ export { Expression } from "./query/Expression.js";
 export { Insert } from "./query/Insert.js";
 export { JoinBuilder } from "./query/JoinBuilder.js";
 export { Ordering } from "./query/Ordering.js";
+export {
+  RowNotFoundError,
+  SingleRow,
+  SingleRowOrThrow,
+} from "./query/SingleRow.js";
 export { scope } from "./query/scope.js";
 export type { Scope } from "./query/scope.js";
 export type {
