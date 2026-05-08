@@ -66,12 +66,24 @@ class JoinBuilder<L, LFKs, LSchema, LName, R, RFKs, RSchema, RName>
 
 `JoinBuilder` extends `Relation` so a JoinBuilder is itself
 runnable — the serialiser fills in the ON predicate from FK
-metadata when no `.on(...)` was supplied. The two classes are
-co-located in `Relation.ts`; the file's header comment walks
-through the alternatives (separate files via factory
-registration, type-alias instead of class, `BaseRelation` split)
-and why each costs more than the co-location. `JoinBuilder.ts`
-is a one-line re-export so import paths stay natural.
+metadata when no `.on(...)` was supplied. The two classes live
+together in `Relation.ts`; `JoinBuilder.ts` is a one-line
+re-export so import paths stay natural.
+
+The viable alternatives all cost more than co-location:
+
+- **Separate files.** Either an ESM circular import (which fails
+  at the `extends Relation` evaluation when JoinBuilder.ts loads
+  before Relation finishes initialising), or a module-init
+  factory-registration hook — replacing a structural guarantee
+  with a runtime invariant.
+- **Type alias instead of a subclass.** A `Relation<branded> & {
+  on }` alias structurally type-checks but quietly drops the
+  FK-inference brand at `db.run(...)` time; the brand only
+  surfaces correctly when JoinBuilder is a class instantiation.
+- **Split `Relation` into a `BaseRelation` + overlay.** Breaks
+  chained joins (`a.innerJoin(b).innerJoin(c)`), which need each
+  step's result to carry `innerJoin` itself.
 
 `declare` means TypeScript believes the field exists; at runtime
 it doesn't. Phantoms are **type-system carriers**: a way to make

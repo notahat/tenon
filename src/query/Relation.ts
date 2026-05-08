@@ -1,39 +1,16 @@
 // Fluent wrappers around relation AST trees: the base `Relation`
-// class and the join-builder subclass `JoinBuilder`.
+// class and the join-builder subclass `JoinBuilder`. They are
+// co-located because they form one fluent layer; `JoinBuilder.ts` is
+// a one-line re-export so import paths stay natural. See
+// docs/architecture/fluent-layer.md for the alternatives weighed
+// (and why each costs more than co-location).
 //
-// `Relation` and `JoinBuilder` are co-located here because they form
-// one fluent layer: every `JoinBuilder` is a `Relation` with one
-// extra method, and `Relation.innerJoin` constructs `JoinBuilder`
-// values. The viable alternatives all cost more than co-location:
-//
-//   - Putting them in separate files needs either an ESM circular
-//     import (fails at the `extends Relation` evaluation when
-//     JoinBuilder.ts loads before Relation finishes initialising)
-//     or a module-init factory-registration hook (a runtime
-//     invariant — `setJoinBuilderFactory` must run before any
-//     `innerJoin` call — replacing a structural guarantee with an
-//     invisible one).
-//   - Replacing the class hierarchy with a `Relation<branded> & {
-//     on }` type alias structurally type-checks but quietly drops
-//     the FK-inference brand at `db.run(...)` time; the brand only
-//     surfaces correctly when JoinBuilder is a class instantiation.
-//   - Splitting `Relation` into a `BaseRelation` (no `innerJoin`)
-//     plus a `Relation` overlay breaks chained joins
-//     (`a.innerJoin(b).innerJoin(c)`), which need each step's
-//     result to carry `innerJoin` itself.
-//
-// `JoinBuilder.ts` exists as a one-line re-export so external
-// imports keep their natural path.
-//
-// Two phantom generics flow through every operator on Relation:
-// Columns describes the row shape after the chain runs, and FKs is a
-// tuple of foreign keys carried for join inference. The serialiser
-// uses the FK list on each TableRef AST node to fill in an ON
-// predicate when JoinBuilder was constructed without `.on(...)`.
+// Two phantom generics flow through every Relation operator: Columns
+// describes the row shape after the chain runs, and FKs is the tuple
+// of foreign keys carried for join inference.
 //
 // Out of scope: SQL serialisation; column accessor merging (handled
-// by `defineTable`, which intersects the Table type with the
-// per-column accessor map).
+// by `defineTable`).
 
 import { innerJoin as innerJoinNode } from "../ast/relation.js";
 import {
