@@ -1,18 +1,18 @@
 // AST -> SQL serialiser.
 //
-// Pure: takes a RelationNode (SELECT), InsertNode, or DeleteNode tree,
-// returns { text, params }. The text is parameterised SQL using $1,
-// $2, ... placeholders compatible with node-postgres. The params array
-// is in the order the placeholders appear in the text.
+// Pure: takes a RelationNode (SELECT), InsertNode, UpdateNode, or
+// DeleteNode tree, returns { text, params }. The text is parameterised
+// SQL using $1, $2, ... placeholders compatible with node-postgres. The
+// params array is in the order the placeholders appear in the text.
 //
 // Strategy: walk the relation tree once to collect clauses (FROM,
 // WHEREs, ORDER BY terms, LIMIT, OFFSET), then emit them in canonical
 // SQL order. Expressions are emitted recursively, threading
 // parameters through a single EmitContext so placeholder numbering is
 // always left-to-right and tree transforms never need to renumber.
-// `insertToSql` and `deleteToSql` share the same EmitContext and
-// helpers, so parameter numbering is consistent across all three
-// statement categories.
+// `insertToSql`, `updateToSql`, and `deleteToSql` share the same
+// EmitContext and helpers, so parameter numbering is consistent across
+// all four statement categories.
 //
 // Out of scope: query execution (src/executor/...); AST construction
 // (src/ast/...); fluent wrappers (src/query/...).
@@ -27,6 +27,7 @@ import type {
   RelationNode,
   TableRef,
 } from "../ast/relation.js";
+import type { UpdateAssignment, UpdateNode } from "../ast/update.js";
 import { quoteIdent } from "./identifier.js";
 import { binarySql, unaryFix } from "./operators.js";
 
@@ -47,6 +48,13 @@ export function relationToSql(node: RelationNode): CompiledQuery {
 export function insertToSql(node: InsertNode): CompiledQuery {
   const context: EmitContext = { params: [] };
   const text = emitInsert(node, context);
+  return { text, params: context.params };
+}
+
+/** Serialise an Update tree to a parameterised SQL UPDATE. */
+export function updateToSql(node: UpdateNode): CompiledQuery {
+  const context: EmitContext = { params: [] };
+  const text = emitUpdate(node, context);
   return { text, params: context.params };
 }
 
@@ -379,6 +387,51 @@ function emitInsertValues(
   return columnValues
     .map((columnValue) => emitExpression(columnValue.value, context))
     .join(", ");
+}
+
+/**
+ * Build an UPDATE statement: `UPDATE "schema"."name" [AS "alias"] SET
+ * <assignments> WHERE <predicates> [RETURNING ...]`. Like DELETE the
+ * target's alias is preserved on emit — predicates qualify columns by
+ * the same alias.
+ *
+ * Throws if the assignment list or the predicate list is empty.
+ * Neither is reachable from the public surface (the only construction
+ * sites — `WritableScope.update` and `WritableSingleRow.update` —
+ * supply at least one of each) so the guards are purely defensive
+ * against direct AST construction.
+ */
+function emitUpdate(node: UpdateNode, context: EmitContext): string {
+  if (node.assignments.length === 0) {
+    throw new Error(
+      "UPDATE without any SET assignments is forbidden. " +
+        "Pass at least one column to update(...).",
+    );
+  }
+  if (node.predicates.length === 0) {
+    throw new Error(
+      "UPDATE without a WHERE clause is forbidden. " +
+        "Narrow the target with .where(...) or .find(id).",
+    );
+  }
+  const target = emitTableRef(node.target);
+  const assignments = node.assignments
+    .map((assignment) => emitAssignment(assignment, context))
+    .join(", ");
+  const where = ` WHERE ${emitPredicates(node.predicates, context)}`;
+  const returning =
+    node.returning === null
+      ? ""
+      : ` RETURNING ${emitSelectList(node.returning, context)}`;
+  return `UPDATE ${target} SET ${assignments}${where}${returning}`;
+}
+
+/** Emit a single assignment as `"column" = <expr>`. */
+function emitAssignment(
+  assignment: UpdateAssignment,
+  context: EmitContext,
+): string {
+  return `${quoteIdent(assignment.column)} = ${emitExpression(assignment.value, context)}`;
 }
 
 /**
