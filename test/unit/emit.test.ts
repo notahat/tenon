@@ -4,6 +4,7 @@ import { emitSchemaFile } from "../../src/introspect/emit.js";
 import type {
   CatalogColumn,
   CatalogForeignKey,
+  CatalogPrimaryKey,
 } from "../../src/introspect/readCatalog.js";
 
 function column(
@@ -165,6 +166,95 @@ describe("emitSchemaFile", () => {
     );
     expect(usersBlock).toContain(`name: "users_org_id_fkey"`);
     expect(orgsBlock).not.toContain(`users_org_id_fkey`);
+  });
+
+  it("renders a fifth-argument primary key when supplied", () => {
+    const pk: CatalogPrimaryKey = {
+      schema: "public",
+      tableName: "users",
+      columns: ["id"],
+    };
+    const output = emitSchemaFile(
+      [column("public", "users", "id", "int4", false)],
+      [],
+      [pk],
+    );
+    expect(output).toContain(`}, [], { columns: ["id"] });`);
+  });
+
+  it("renders both FKs and a primary key together", () => {
+    const fk: CatalogForeignKey = {
+      name: "posts_author_id_fkey",
+      schema: "public",
+      tableName: "posts",
+      columns: ["author_id"],
+      referencedSchema: "public",
+      referencedTable: "users",
+      referencedColumns: ["id"],
+    };
+    const pk: CatalogPrimaryKey = {
+      schema: "public",
+      tableName: "posts",
+      columns: ["id"],
+    };
+    const output = emitSchemaFile(
+      [
+        column("public", "posts", "id", "int4", false),
+        column("public", "posts", "author_id", "int4", false),
+      ],
+      [fk],
+      [pk],
+    );
+    expect(output).toContain(`], { columns: ["id"] });`);
+  });
+
+  it("emits composite primary keys faithfully", () => {
+    const pk: CatalogPrimaryKey = {
+      schema: "public",
+      tableName: "tenant_users",
+      columns: ["tenant_id", "user_id"],
+    };
+    const output = emitSchemaFile(
+      [
+        column("public", "tenant_users", "tenant_id", "int4", false),
+        column("public", "tenant_users", "user_id", "int4", false),
+      ],
+      [],
+      [pk],
+    );
+    expect(output).toContain(`{ columns: ["tenant_id", "user_id"] }`);
+  });
+
+  it("omits the primary key argument entirely when none is supplied", () => {
+    const output = emitSchemaFile(
+      [column("public", "users", "id", "int4", false)],
+      [],
+      [],
+    );
+    expect(output).not.toContain("columns:");
+  });
+
+  it("attaches primary keys to the correct table when several are emitted", () => {
+    const usersPk: CatalogPrimaryKey = {
+      schema: "public",
+      tableName: "users",
+      columns: ["id"],
+    };
+    const output = emitSchemaFile(
+      [
+        column("public", "users", "id", "int4", false),
+        column("public", "events", "id", "int4", false),
+      ],
+      [],
+      [usersPk],
+    );
+    const usersBlock = output.slice(
+      output.indexOf("export const users"),
+      output.indexOf("export const events"),
+    );
+    const eventsBlock = output.slice(output.indexOf("export const events"));
+    expect(usersBlock).toContain(`{ columns: ["id"] }`);
+    expect(eventsBlock).not.toContain(`columns:`);
   });
 
   it("drops composite FKs and leaves a comment above the table", () => {

@@ -22,6 +22,10 @@ import { Relation } from "../query/Relation.js";
 import type { JoinBuilder } from "../query/Relation.js";
 import type { ForeignKeyTuple, InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
+import type { PrimaryKey } from "./primaryKey.js";
+
+/** Default primary key when none is supplied: an empty column tuple. */
+const EMPTY_PRIMARY_KEY: PrimaryKey = { columns: [] };
 
 /**
  * The shape of a defined table: a Relation with column accessors
@@ -29,12 +33,15 @@ import type { ColumnType, ColumnsShape } from "./columnType.js";
  * references; `Schema` and `PhysicalName` carry the table's literal
  * physical identity (preserved across `.as("alias")`) so the
  * type-level join-inference checks can detect self-joins by
- * comparing `(Schema, PhysicalName)` pairs.
+ * comparing `(Schema, PhysicalName)` pairs. `PK` carries the
+ * primary-key column tuple, used to type `Table.find(id)` (added in
+ * step 2 of the v1.11 plan).
  */
 export type Table<
   Alias extends string,
   Columns extends ColumnsShape,
   FKs extends ForeignKeyTuple = readonly [],
+  PK extends PrimaryKey = { readonly columns: readonly [] },
   Schema extends string = string,
   PhysicalName extends string = string,
 > = Omit<Relation<Columns, FKs>, "where" | "innerJoin"> &
@@ -43,6 +50,7 @@ export type Table<
     _schema: Schema;
     _physicalName: PhysicalName;
     _foreignKeys: FKs;
+    _primaryKey: PK;
   }> & {
     readonly [Name in keyof Columns & string]: Column<
       Alias,
@@ -59,7 +67,7 @@ export type Table<
      */
     as<NewAlias extends string>(
       alias: NewAlias,
-    ): Table<NewAlias, Columns, FKs, Schema, PhysicalName>;
+    ): Table<NewAlias, Columns, FKs, PK, Schema, PhysicalName>;
     /**
      * Inner-join this table with another defined table. Captures the
      * literal physical (schema, name) of both sides so the resulting
@@ -126,34 +134,41 @@ export type Table<
  * table name itself; rename it for joins via `.as("u")`. The optional
  * `foreignKeys` argument records this table's outgoing FK
  * relationships, used by the fluent layer to infer ON predicates for
- * `innerJoin` calls that omit `.on(...)`.
+ * `innerJoin` calls that omit `.on(...)`. The optional `primaryKey`
+ * records the columns that make up the primary key; `tenon-generate`
+ * emits it from `pg_catalog`. Single-column primary keys flow into
+ * the `Table.find(id)` signature (added in step 2 of the v1.11 plan).
  */
 export function defineTable<
   TableName extends string,
   Schema extends string,
   Columns extends ColumnsShape,
   const FKs extends ForeignKeyTuple = readonly [],
+  const PK extends PrimaryKey = { readonly columns: readonly [] },
 >(
   schema: Schema,
   name: TableName,
   columns: Columns,
   foreignKeys: FKs = [] as unknown as FKs,
-): Table<TableName, Columns, FKs, Schema, TableName> {
-  return buildTable(schema, name, name, columns, foreignKeys) as Table<
-    TableName,
-    Columns,
-    FKs,
-    Schema,
-    TableName
-  >;
+  primaryKey: PK = EMPTY_PRIMARY_KEY as PK,
+): Table<TableName, Columns, FKs, PK, Schema, TableName> {
+  return buildTable(
+    schema,
+    name,
+    name,
+    columns,
+    foreignKeys,
+    primaryKey,
+  ) as Table<TableName, Columns, FKs, PK, Schema, TableName>;
 }
 
 /**
  * Construct a Table for the given physical (schema, name) under the
  * given column-qualification alias. Shared between `defineTable` (where
  * the alias defaults to the table name) and `Table.as` (where the user
- * picks the alias). FK metadata is preserved unchanged across aliasing
- * because FKs reference *physical* table names, not aliases.
+ * picks the alias). FK and PK metadata are preserved unchanged across
+ * aliasing because both reference *physical* column / table names, not
+ * aliases.
  */
 function buildTable<
   Alias extends string,
@@ -161,13 +176,15 @@ function buildTable<
   PhysicalName extends string,
   Columns extends ColumnsShape,
   FKs extends ForeignKeyTuple,
+  PK extends PrimaryKey,
 >(
   schema: Schema,
   name: PhysicalName,
   alias: Alias,
   columns: Columns,
   foreignKeys: FKs,
-): Table<Alias, Columns, FKs, Schema, PhysicalName> {
+  primaryKey: PK,
+): Table<Alias, Columns, FKs, PK, Schema, PhysicalName> {
   const node =
     (alias as string) === (name as string)
       ? tableRef({ schema, name, foreignKeys })
@@ -189,10 +206,11 @@ function buildTable<
     _schema: schema,
     _physicalName: name,
     _foreignKeys: foreignKeys,
+    _primaryKey: primaryKey,
     as<NewAlias extends string>(
       newAlias: NewAlias,
-    ): Table<NewAlias, Columns, FKs, Schema, PhysicalName> {
-      return buildTable(schema, name, newAlias, columns, foreignKeys);
+    ): Table<NewAlias, Columns, FKs, PK, Schema, PhysicalName> {
+      return buildTable(schema, name, newAlias, columns, foreignKeys, primaryKey);
     },
     // No runtime override for `innerJoin`: it's inherited from
     // `Relation.prototype` via the `new Relation(node)` above. The
@@ -225,5 +243,5 @@ function buildTable<
       );
     },
   });
-  return relation as Table<Alias, Columns, FKs, Schema, PhysicalName>;
+  return relation as Table<Alias, Columns, FKs, PK, Schema, PhysicalName>;
 }

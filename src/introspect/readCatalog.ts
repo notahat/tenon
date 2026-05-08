@@ -53,10 +53,22 @@ export interface CatalogForeignKey {
   readonly referencedColumns: readonly string[];
 }
 
+/**
+ * One primary-key constraint. Composite keys come back with a
+ * `columns` array of length > 1; tables without a declared primary
+ * key produce no record at all.
+ */
+export interface CatalogPrimaryKey {
+  readonly schema: string;
+  readonly tableName: string;
+  readonly columns: readonly string[];
+}
+
 /** The full pg_catalog snapshot for a schema list. */
 export interface Catalog {
   readonly columns: readonly CatalogColumn[];
   readonly foreignKeys: readonly CatalogForeignKey[];
+  readonly primaryKeys: readonly CatalogPrimaryKey[];
 }
 
 const COLUMNS_QUERY = `
@@ -77,6 +89,28 @@ const COLUMNS_QUERY = `
     AND a.attnum  > 0
     AND NOT a.attisdropped
   ORDER BY n.nspname, c.relname, a.attnum
+`;
+
+// Primary keys live in pg_constraint with contype = 'p'. Same
+// generate_subscripts pattern as the FK query, but only one side: the
+// referencing columns themselves. Each table has at most one primary
+// key, so no aggregation across constraints is needed beyond the
+// per-constraint column ordering.
+const PRIMARY_KEYS_QUERY = `
+  SELECT
+    rel_n.nspname  AS schema,
+    rel_c.relname  AS table_name,
+    array_agg(rel_a.attname::text ORDER BY i) AS columns
+  FROM pg_constraint con
+  JOIN pg_class      rel_c ON rel_c.oid = con.conrelid
+  JOIN pg_namespace  rel_n ON rel_n.oid = rel_c.relnamespace
+  JOIN LATERAL generate_subscripts(con.conkey, 1) AS i ON true
+  JOIN pg_attribute  rel_a
+    ON rel_a.attrelid = con.conrelid AND rel_a.attnum = con.conkey[i]
+  WHERE con.contype = 'p'
+    AND rel_n.nspname = ANY($1::text[])
+  GROUP BY con.oid, rel_n.nspname, rel_c.relname
+  ORDER BY rel_n.nspname, rel_c.relname
 `;
 
 // pg_constraint stores conkey/confkey as int2[] arrays of attribute
@@ -133,13 +167,20 @@ interface ForeignKeyRow {
   referenced_columns: string[];
 }
 
+interface PrimaryKeyRow {
+  [key: string]: unknown;
+  schema: string;
+  table_name: string;
+  columns: string[];
+}
+
 /**
  * Query pg_catalog for every column in the given schemas, plus every
- * foreign-key constraint declared on a table in those schemas. Tables,
- * views, materialised views, and partitioned tables are all returned;
- * dropped columns and system columns are excluded. Column rows are
- * ordered by (schema, table, attnum); FK rows by (schema, table,
- * constraint name).
+ * foreign-key and primary-key constraint declared on a table in those
+ * schemas. Tables, views, materialised views, and partitioned tables
+ * are all returned; dropped columns and system columns are excluded.
+ * Column rows are ordered by (schema, table, attnum); FK rows by
+ * (schema, table, constraint name); PK rows by (schema, table).
  */
 export async function readCatalog(
   runner: QueryRunner,
@@ -148,6 +189,10 @@ export async function readCatalog(
   const columnsResult = await runner.query<ColumnRow>(COLUMNS_QUERY, [schemas]);
   const foreignKeysResult = await runner.query<ForeignKeyRow>(
     FOREIGN_KEYS_QUERY,
+    [schemas],
+  );
+  const primaryKeysResult = await runner.query<PrimaryKeyRow>(
+    PRIMARY_KEYS_QUERY,
     [schemas],
   );
   const columns = columnsResult.rows.map((row) => ({
@@ -168,5 +213,10 @@ export async function readCatalog(
     referencedTable: row.referenced_table,
     referencedColumns: row.referenced_columns,
   }));
-  return { columns, foreignKeys };
+  const primaryKeys = primaryKeysResult.rows.map((row) => ({
+    schema: row.schema,
+    tableName: row.table_name,
+    columns: row.columns,
+  }));
+  return { columns, foreignKeys, primaryKeys };
 }

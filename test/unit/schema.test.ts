@@ -158,4 +158,52 @@ describe("defineTable", () => {
       },
     ]);
   });
+
+  it("defaults the primary key to an empty column list", () => {
+    const users = defineTable("public", "users", {
+      id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+    });
+
+    expect(users._primaryKey).toEqual({ columns: [] });
+  });
+
+  it("stores the supplied primary key verbatim", () => {
+    const users = defineTable(
+      "public",
+      "users",
+      {
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: true,
+          isGenerated: false,
+        }),
+      },
+      [],
+      { columns: ["id"] },
+    );
+
+    expect(users._primaryKey).toEqual({ columns: ["id"] });
+  });
+
+  it("preserves the primary key when a table is aliased", () => {
+    const users = defineTable(
+      "public",
+      "users",
+      {
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: true,
+          isGenerated: false,
+        }),
+      },
+      [],
+      { columns: ["id"] },
+    );
+
+    expect(users.as("u")._primaryKey).toEqual({ columns: ["id"] });
+  });
 });
