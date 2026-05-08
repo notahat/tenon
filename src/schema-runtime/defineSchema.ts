@@ -14,16 +14,23 @@
 
 import { binaryOp, columnRef, parameter } from "../ast/expression.js";
 import {
+  innerJoin as innerJoinNode,
+  limit as limitNode,
+  project as projectNode,
+  projectionItem,
   tableRef as tableRefNode,
   where as whereNode,
 } from "../ast/relation.js";
-import { hasManyAccessorName } from "../query/accessor-naming.js";
+import {
+  belongsToAccessorName,
+  hasManyAccessorName,
+} from "../query/accessor-naming.js";
 import { Relation } from "../query/Relation.js";
 import { SingleRow } from "../query/SingleRow.js";
 import type {
   ForeignKeyTuple,
-  HasManyAccessors,
   TableShape,
+  WiredSingleRow,
 } from "../query/types.js";
 import type { ColumnsShape } from "./columnType.js";
 import type { ForeignKey } from "./foreignKey.js";
@@ -69,10 +76,10 @@ type WiredFind<T extends TableShape, S extends Record<string, TableShape>> =
       ? {
           /**
            * Look up a row by its primary key. The returned SingleRow
-           * carries association accessors derived from the FK metadata
-           * across the schema bag.
+           * carries association accessors (has-many + belongs-to)
+           * derived from the FK metadata across the schema bag.
            */
-          find(id: C[Col]["_tsType"]): SingleRow<C> & HasManyAccessors<T, S>;
+          find(id: C[Col]["_tsType"]): WiredSingleRow<T, S>;
         }
       : Record<never, never>
     : Record<never, never>;
@@ -85,14 +92,33 @@ type WiredFind<T extends TableShape, S extends Record<string, TableShape>> =
 export function defineSchema<const S extends Record<string, TableShape>>(
   tables: S,
 ): WiredSchema<S> {
+  const lookup = buildLookup(tables);
   for (const table of Object.values(tables)) {
-    wireTable(table as AnyTableRuntime, tables);
+    wireTable(table as AnyTableRuntime, tables, lookup);
   }
   // The cast is through `unknown` because Omit-then-intersect makes
   // `WiredSchema<S>` structurally distinct from `S`. The runtime
   // mutation above installs the wired `find` on every table; the
   // returned bag is the same record, re-typed to expose it.
   return tables as unknown as WiredSchema<S>;
+}
+
+/**
+ * Build a `${schema}.${physicalName}` -> Table lookup. Belongs-to
+ * accessors use this to resolve the FK target's Table value (so the
+ * accessor's SingleRow carries the target's own association map).
+ */
+function buildLookup(
+  tables: Record<string, TableShape>,
+): Map<string, AnyTableRuntime> {
+  const lookup = new Map<string, AnyTableRuntime>();
+  for (const table of Object.values(tables)) {
+    lookup.set(
+      `${table._schema}.${table._physicalName}`,
+      table as AnyTableRuntime,
+    );
+  }
+  return lookup;
 }
 
 /**
@@ -103,12 +129,17 @@ export function defineSchema<const S extends Record<string, TableShape>>(
 function wireTable(
   table: AnyTableRuntime,
   allTables: Record<string, TableShape>,
+  lookup: Map<string, AnyTableRuntime>,
 ): void {
   if (table.find === undefined) return;
   const originalFind = table.find.bind(table);
   table.find = function wiredFind(id: unknown): SingleRow<ColumnsShape> {
     const singleRow = originalFind(id);
-    Object.assign(singleRow, buildHasManyAccessors(table, id, allTables));
+    Object.assign(
+      singleRow,
+      buildHasManyAccessors(table, id, allTables),
+      buildBelongsToAccessors(table, id, lookup),
+    );
     return singleRow;
   };
 }
@@ -196,4 +227,111 @@ function buildHasManyRelation(
     parameter(parentId),
   );
   return new Relation(whereNode(childRef, predicate));
+}
+
+/**
+ * Compute the belongs-to accessors for `child.find(id)`: for each
+ * single-column FK on the child, look up the referenced parent in the
+ * schema, derive the accessor name, and wire a SingleRow whose SQL
+ * joins parent to child to recover the parent row keyed by the
+ * child's id. Skips:
+ *   - composite FKs (filtered to mirror `FkMatches`)
+ *   - FKs whose target isn't in the schema bag
+ *   - accessor names that collide with a column on the child
+ *
+ * The wired SingleRow inherits the parent's own association map,
+ * because `parent.find(...)` is already wired by the time we reach
+ * here (defineSchema does its passes in input order, but each call to
+ * `parent.find` rebuilds the accessor bag, so even out-of-order
+ * topology works as long as the parent table is in the schema bag).
+ */
+function buildBelongsToAccessors(
+  child: TableShape,
+  childId: unknown,
+  lookup: Map<string, AnyTableRuntime>,
+): Record<string, SingleRow<ColumnsShape>> {
+  const childPkColumn = child._primaryKey.columns[0];
+  if (childPkColumn === undefined) return {};
+  const accessors: Record<string, SingleRow<ColumnsShape>> = {};
+  for (const fk of child._foreignKeys) {
+    if (fk.columns.length !== 1) continue;
+    const parentKey = `${fk.referencedSchema}.${fk.referencedTable}`;
+    const parent = lookup.get(parentKey);
+    if (parent === undefined) continue;
+    const accessorName = belongsToAccessorName(
+      fk.columns[0]!,
+      fk.referencedTable,
+    );
+    if (child._columnNames.includes(accessorName)) continue;
+    accessors[accessorName] = buildBelongsToSingleRow(
+      child,
+      childPkColumn,
+      childId,
+      parent,
+      fk,
+    );
+  }
+  return accessors;
+}
+
+/**
+ * Build the `SingleRow<parent>` returned by a belongs-to accessor.
+ * The SQL is:
+ *   SELECT parent.* FROM parent
+ *   INNER JOIN child ON parent.<refCol> = child.<fkCol>
+ *   WHERE child.<pkCol> = $childId
+ *   LIMIT 1
+ * The parent's `find` is then re-applied to merge the parent's own
+ * accessor map onto the result, so chained walks
+ * (`comments.find(5).post.author`) compose without special-casing.
+ */
+function buildBelongsToSingleRow(
+  child: TableShape,
+  childPkColumn: string,
+  childId: unknown,
+  parent: AnyTableRuntime,
+  fk: ForeignKey,
+): SingleRow<ColumnsShape> {
+  const parentRef = tableRefNode({
+    schema: parent._schema,
+    name: parent._physicalName,
+    foreignKeys: parent._foreignKeys,
+  });
+  const childRef = tableRefNode({
+    schema: child._schema,
+    name: child._physicalName,
+    foreignKeys: child._foreignKeys,
+  });
+  const referencedColumn = fk.referencedColumns[0]!;
+  const fkColumn = fk.columns[0]!;
+  const joinPredicate = binaryOp(
+    "=",
+    columnRef({ tableAlias: parent._physicalName, column: referencedColumn }),
+    columnRef({ tableAlias: child._physicalName, column: fkColumn }),
+  );
+  const wherePredicate = binaryOp(
+    "=",
+    columnRef({ tableAlias: child._physicalName, column: childPkColumn }),
+    parameter(childId),
+  );
+  const projectionItems = parent._columnNames.map((name) =>
+    projectionItem(
+      columnRef({ tableAlias: parent._physicalName, column: name }),
+      name,
+    ),
+  );
+  const node = limitNode(
+    projectNode(
+      whereNode(innerJoinNode(parentRef, childRef, joinPredicate), wherePredicate),
+      projectionItems,
+    ),
+    1,
+  );
+  // The returned SingleRow is plain — no further accessors are
+  // wired. Chained walks like `comments.find(5).post.author` would
+  // need a chained-join runtime (each accessor extends the join
+  // chain rather than starting a new query), which is out of scope
+  // for v1. The type-level returns plain `SingleRow<RefColumns>` so
+  // chained walks don't compile, keeping the surface honest.
+  return new SingleRow(node);
 }

@@ -12,6 +12,7 @@ import type { AliasedColumn } from "./AliasedColumn.js";
 import type { Column } from "./Column.js";
 import type { Expression } from "./Expression.js";
 import type { Relation } from "./Relation.js";
+import type { SingleRow } from "./SingleRow.js";
 
 /**
  * Values acceptable on the right-hand side of an ordering or equality
@@ -489,3 +490,120 @@ type HasManyAccessorValue<T extends TableShape, U extends TableShape> =
           >,
         U["_foreignKeys"]
       >;
+
+/**
+ * Find the table in `S` whose physical (schema, name) pair matches
+ * the given target. Returns `never` when no match exists; the runtime
+ * mirror skips such accessors silently.
+ */
+type LookupTableByPhysical<
+  S extends Record<string, TableShape>,
+  TargetSchema extends string,
+  TargetName extends string,
+> = {
+  [K in keyof S]: [S[K]["_schema"], S[K]["_physicalName"]] extends [
+    TargetSchema,
+    TargetName,
+  ]
+    ? S[K]
+    : never;
+}[keyof S];
+
+/**
+ * Map from accessor name to value type for belongs-to associations on
+ * the child table `T`, given the full schema bag `S`. Iterates `T`'s
+ * outgoing FKs, looks up the referenced table in `S` by
+ * `${schema}.${physicalName}`, and adds an accessor named via
+ * `belongsToAccessorName` (FK column with trailing `_id` stripped, or
+ * the referenced table name verbatim). Composite FKs are skipped to
+ * mirror the type-level filter in `FkMatches`.
+ *
+ * The accessor's value is recursive — `WiredSingleRow<Ref, S>` carries
+ * Ref's own accessors — so chained walks like
+ * `comments.find(5).post.author` compile.
+ */
+export type BelongsToAccessors<
+  T extends TableShape,
+  S extends Record<string, TableShape>,
+> = {
+  [Index in keyof T["_foreignKeys"] as BelongsToAccessorKey<
+    T["_foreignKeys"][Index & number],
+    T["_columns"],
+    S
+  >]: BelongsToAccessorValue<T["_foreignKeys"][Index & number], S>;
+};
+
+/**
+ * Accessor-name picker for a single belongs-to FK. Returns the
+ * derived name when the FK is single-column, the name doesn't
+ * collide with a column on `T`, AND the FK's referenced table is
+ * present in the schema bag `S`. Otherwise `never`, which removes
+ * the entry from the accessor map.
+ */
+type BelongsToAccessorKey<
+  FK,
+  TColumns extends ColumnsShape,
+  S extends Record<string, TableShape>,
+> = FK extends ForeignKey
+  ? FK["columns"]["length"] extends 1
+    ? StripIdSuffix<
+        FK["columns"][0] & string,
+        FK["referencedTable"]
+      > extends keyof TColumns
+      ? never
+      : LookupTableByPhysical<
+            S,
+            FK["referencedSchema"],
+            FK["referencedTable"]
+          > extends never
+        ? never
+        : StripIdSuffix<FK["columns"][0] & string, FK["referencedTable"]>
+    : never
+  : never;
+
+/**
+ * Strip a trailing `_id` from `Col`. If `Col` doesn't end in `_id`,
+ * fall back to the referenced table's name verbatim. Mirrors the
+ * runtime `belongsToAccessorName` rule.
+ */
+type StripIdSuffix<
+  Col extends string,
+  Fallback extends string,
+> = Col extends `${infer Stem}_id` ? Stem : Fallback;
+
+/**
+ * Value type for a belongs-to accessor: a `SingleRow` over the
+ * referenced table's columns. v1 returns plain `SingleRow` (not
+ * `WiredSingleRow`) so chained walks like `find().post.author`
+ * deliberately don't compile — they would need a chained-join
+ * runtime that the v1 SingleRow doesn't carry. See the v1.11 plan's
+ * "Open questions" section for the followup.
+ */
+type BelongsToAccessorValue<FK, S extends Record<string, TableShape>> =
+  FK extends ForeignKey
+    ? LookupTableByPhysical<
+        S,
+        FK["referencedSchema"],
+        FK["referencedTable"]
+      > extends infer Ref
+      ? Ref extends TableShape
+        ? SingleRow<Ref["_columns"]>
+        : never
+      : never
+    : never;
+
+/** All FK-derived accessors (has-many + belongs-to) for a table. */
+export type AccessorsFor<
+  T extends TableShape,
+  S extends Record<string, TableShape>,
+> = HasManyAccessors<T, S> & BelongsToAccessors<T, S>;
+
+/**
+ * The result of `Table.find(id)` once `defineSchema` has wired the
+ * association map. A plain `SingleRow<C>` plus the accessor record
+ * for the source table.
+ */
+export type WiredSingleRow<
+  T extends TableShape,
+  S extends Record<string, TableShape>,
+> = SingleRow<T["_columns"]> & AccessorsFor<T, S>;
