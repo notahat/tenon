@@ -17,6 +17,7 @@ export { Expression } from "./query/Expression.js";
 export { Insert } from "./query/Insert.js";
 export { JoinBuilder } from "./query/JoinBuilder.js";
 export { Ordering } from "./query/Ordering.js";
+export { Update } from "./query/Update.js";
 export {
   WritableSingleRow,
   RowNotFoundError,
@@ -32,4 +33,5 @@ export type {
   ProjectableItem,
   ProjectedShape,
   RowOf,
+  UpdatableAttrs,
 } from "./query/types.js";

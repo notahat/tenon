@@ -399,6 +399,22 @@ export type InsertableAttrs<Columns extends ColumnsShape> = Prettify<
 >;
 
 /**
+ * The TS shape `.update(attrs)` accepts. All non-generated columns are
+ * optional; nullable columns also accept `null`. Generated columns are
+ * absent — supplying one is a "no such property" error. `hasDefault`
+ * is irrelevant for UPDATE (defaults apply only on INSERT) so it is
+ * not consulted. Primary-key columns are updatable; ruling them out
+ * would be opinionated and precludes legitimate renumbering.
+ */
+export type UpdatableAttrs<Columns extends ColumnsShape> = Prettify<{
+  [Name in keyof Columns as Columns[Name]["isGenerated"] extends true
+    ? never
+    : Name]?: Columns[Name]["nullable"] extends true
+    ? Columns[Name]["_tsType"] | null
+    : Columns[Name]["_tsType"];
+}>;
+
+/**
  * The structural shape `defineSchema` reads off each Table value when
  * computing the type-level association map. The schema-runtime `Table`
  * type is wider than this — it carries column accessors, relation

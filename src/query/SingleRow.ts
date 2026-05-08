@@ -11,11 +11,12 @@
 // the type level by being a separate class from Relation.
 //
 // `WritableSingleRow` is the subclass that `Table.find` actually
-// returns — same SELECT path, plus a `.delete()` method that builds a
-// DELETE on the underlying primary-key predicate. Association-built
-// SingleRows (belongs-to chains in defineSchema) construct plain
-// SingleRow because the underlying join shape can't be turned into a
-// flat DELETE. Mirrors the Relation / WritableScope split.
+// returns — same SELECT path, plus `.delete()` and `.update(attrs)`
+// methods that build DELETE/UPDATE on the underlying primary-key
+// predicate. Association-built SingleRows (belongs-to chains in
+// defineSchema) construct plain SingleRow because the underlying join
+// shape can't be turned into a flat DELETE/UPDATE. Mirrors the
+// Relation / WritableScope split.
 //
 // Out of scope: SQL serialisation (src/sql/serialise.ts); association
 // accessors merged onto SingleRow values by defineSchema (added in
@@ -23,9 +24,13 @@
 
 import { deleteNode } from "../ast/delete.js";
 import type { ExpressionNode } from "../ast/expression.js";
+import { parameter } from "../ast/expression.js";
 import type { RelationNode, TableRef } from "../ast/relation.js";
+import { updateAssignment, updateNode } from "../ast/update.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
 import { Delete } from "./Delete.js";
+import type { UpdatableAttrs } from "./types.js";
+import { Update } from "./Update.js";
 
 /**
  * A query that returns 0 or 1 rows when run. `db.run(singleRow)`
@@ -88,6 +93,25 @@ export class WritableSingleRow<
         target: this.target,
         predicates: this.predicates,
         allowEmptyPredicates: false,
+      }),
+    );
+  }
+
+  /**
+   * Build an UPDATE for this row. `db.run` resolves to `{ rowCount: 0
+   * | 1 }` — 0 when the row didn't exist, 1 when it did. Chain
+   * `.returning(...)` on the result to recover columns from the
+   * updated row. Passing `{}` typechecks but throws at run time.
+   */
+  update(attrs: UpdatableAttrs<Columns>): Update<Columns, null> {
+    const assignments = Object.entries(attrs as Record<string, unknown>).map(
+      ([columnName, value]) => updateAssignment(columnName, parameter(value)),
+    );
+    return new Update<Columns, null>(
+      updateNode({
+        target: this.target,
+        assignments,
+        predicates: this.predicates,
       }),
     );
   }

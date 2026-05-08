@@ -1,5 +1,5 @@
-// Thin wrapper around a node-postgres pool that runs typed Relations
-// and Inserts.
+// Thin wrapper around a node-postgres pool that runs typed Relations,
+// Inserts, Updates, and Deletes.
 //
 // Database does NOT own the lifecycle of the pool it is handed; the
 // caller is responsible for `pool.end()`. A single pooled client may
@@ -25,8 +25,14 @@ import type {
   RowOf,
   UnbrandedColumns,
 } from "../query/types.js";
+import { Update } from "../query/Update.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
-import { deleteToSql, insertToSql, relationToSql } from "../sql/serialise.js";
+import {
+  deleteToSql,
+  insertToSql,
+  relationToSql,
+  updateToSql,
+} from "../sql/serialise.js";
 
 /** A query runner accepted by `Database.run`. Both pg.Pool and pg.PoolClient match. */
 interface QueryRunner {
@@ -60,6 +66,14 @@ export class Database {
     client?: PoolClient,
   ): Promise<{ readonly rowCount: number }>;
   run<Columns extends ColumnsShape, Returning extends ColumnsShape>(
+    statement: Update<Columns, Returning>,
+    client?: PoolClient,
+  ): Promise<RowOf<Returning>[]>;
+  run<Columns extends ColumnsShape>(
+    statement: Update<Columns, null>,
+    client?: PoolClient,
+  ): Promise<{ readonly rowCount: number }>;
+  run<Columns extends ColumnsShape, Returning extends ColumnsShape>(
     statement: Insert<Columns, Returning>,
     client?: PoolClient,
   ): Promise<RowOf<Returning>[]>;
@@ -85,6 +99,7 @@ export class Database {
     statement:
       | Relation<ColumnsShape, ForeignKeyTuple>
       | Insert<ColumnsShape, ColumnsShape | null>
+      | Update<ColumnsShape, ColumnsShape | null>
       | Delete<ColumnsShape, ColumnsShape | null>
       | SingleRow<ColumnsShape>
       | SingleRowOrThrow<ColumnsShape>,
@@ -93,6 +108,14 @@ export class Database {
     const runner: QueryRunner = client ?? this.pool;
     if (statement instanceof Insert) {
       const compiled = insertToSql(statement.node);
+      const result = await runner.query(compiled.text, [...compiled.params]);
+      if (statement.node.returning === null) {
+        return { rowCount: result.rowCount ?? 0 };
+      }
+      return result.rows;
+    }
+    if (statement instanceof Update) {
+      const compiled = updateToSql(statement.node);
       const result = await runner.query(compiled.text, [...compiled.params]);
       if (statement.node.returning === null) {
         return { rowCount: result.rowCount ?? 0 };

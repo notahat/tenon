@@ -1,28 +1,32 @@
-// A where-narrowed scope on a base table that can build a DELETE.
-// Returned by `Table.where(predicate)`; carries `.where` (chains and
-// stays in scope) and `.delete()` (consumes the accumulated predicates
-// to build a DeleteNode).
+// A where-narrowed scope on a base table that can build a DELETE or
+// UPDATE. Returned by `Table.where(predicate)`; carries `.where`
+// (chains and stays in scope), `.delete()` (consumes the accumulated
+// predicates to build a DeleteNode), and `.update(attrs)` (consumes
+// them plus a SET attrs object to build an UpdateNode).
 //
 // Extending Relation gives the scope all the read-side operators for
 // free, but only `.where` is overridden to keep the scope alive —
 // `.order`, `.limit`, `.project`, `.innerJoin` widen back to plain
-// Relation, which has no `.delete` method. That mirrors Postgres:
-// DELETE accepts WHERE and RETURNING but not ORDER/LIMIT/PROJECT/JOIN
-// in this iteration.
+// Relation, which has neither `.delete` nor `.update`. That mirrors
+// Postgres: DELETE / UPDATE accept WHERE and RETURNING but not
+// ORDER / LIMIT / PROJECT / JOIN in this iteration.
 //
-// Out of scope: SQL emission (src/sql/serialise.ts → deleteToSql);
-// the Rails-style insert-chain (deferred to v1.9; uses an analogous
-// `InsertableScope` with a predicate-to-attrs extractor).
+// Out of scope: SQL emission (src/sql/serialise.ts → deleteToSql,
+// updateToSql); the Rails-style insert-chain (deferred to v1.9; uses
+// an analogous `InsertableScope` with a predicate-to-attrs extractor).
 
 import { deleteNode } from "../ast/delete.js";
 import type { ExpressionNode } from "../ast/expression.js";
+import { parameter } from "../ast/expression.js";
 import type { RelationNode, TableRef } from "../ast/relation.js";
 import { where as whereNode } from "../ast/relation.js";
+import { updateAssignment, updateNode } from "../ast/update.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
 import { Delete } from "./Delete.js";
 import type { Expression } from "./Expression.js";
 import { Relation } from "./Relation.js";
-import type { ForeignKeyTuple } from "./types.js";
+import type { ForeignKeyTuple, UpdatableAttrs } from "./types.js";
+import { Update } from "./Update.js";
 
 export class WritableScope<
   TableName extends string,
@@ -67,6 +71,27 @@ export class WritableScope<
         target: this.target,
         predicates,
         allowEmptyPredicates: false,
+      }),
+    );
+  }
+
+  /**
+   * Build an UPDATE statement using the accumulated predicates and the
+   * supplied SET attrs. Iteration order on `attrs` is preserved (per
+   * ES2015+ object-key order) so the emitted SQL is deterministic. The
+   * serialiser refuses to emit an UPDATE with no assignments — passing
+   * `{}` here typechecks but throws at run time.
+   */
+  update(attrs: UpdatableAttrs<Columns>): Update<Columns, null> {
+    const predicates = collectWherePredicates(this.node);
+    const assignments = Object.entries(attrs as Record<string, unknown>).map(
+      ([columnName, value]) => updateAssignment(columnName, parameter(value)),
+    );
+    return new Update<Columns, null>(
+      updateNode({
+        target: this.target,
+        assignments,
+        predicates,
       }),
     );
   }
