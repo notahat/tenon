@@ -13,7 +13,10 @@ Two thick files plus a sprinkle:
 - **`src/query/types.ts`** — `RowOf`, `MergedColumns`,
   `InsertableAttrs`, `ProjectedShape`, `ComparableTo`,
   `DuplicateColumnNames`, `Prettify`, `ItemOutputName`,
-  `ItemColumnType`.
+  `ItemColumnType`, plus the FK-inference machinery
+  (`ForeignKeyTuple`, `MergedForeignKeys`, `IsSamePhysicalTable`,
+  `SelfJoinBrand`, `MissingFkBrand`, `AmbiguousFkBrand`,
+  `MergedColumnsWithFkBrand`).
 - **Per-class phantoms** — declared inline in `Relation`,
   `Insert`, `Delete`, `DeletableScope`, `Column`,
   `AliasedColumn`, `Expression`, `JoinBuilder`. See
@@ -114,6 +117,62 @@ projected relation runs cleanly.
 The literal-template error message is what TypeScript surfaces
 at the run site. It names the offending columns inline so the
 user doesn't need to chase the diagnostic.
+
+## FK-inference brands
+
+Three more brands ride alongside `__tenonDuplicateColumns`,
+applied to a `JoinBuilder`'s merged-columns shape when the
+foreign-key inference path can't pick a unique predicate:
+
+```ts
+type SelfJoinBrand<Schema, Name> = {
+  readonly __tenonInferenceSelfJoin: `tenon: ... self-join on ${Schema}.${Name} ...`;
+};
+type MissingFkBrand<LSchema, LName, RSchema, RName> = {
+  readonly __tenonInferenceMissing: `tenon: ... no foreign key between ${LSchema}.${LName} and ${RSchema}.${RName} ...`;
+};
+type AmbiguousFkBrand<LSchema, LName, RSchema, RName> = {
+  readonly __tenonInferenceAmbiguous: `tenon: ... ambiguous foreign keys between ${LSchema}.${LName} and ${RSchema}.${RName} ...`;
+};
+```
+
+`MergedColumnsWithFkBrand<L, R, LFKs, LSchema, LName, RFKs, RSchema, RName>`
+picks one (or none) by:
+
+1. If any of the four identity generics is the wide `string` type
+   (e.g. the left side was a chained `Relation`, not a `Table`),
+   no brand is applied — inference falls through to the
+   serialiser's runtime check.
+2. `IsSamePhysicalTable<LSchema, LName, RSchema, RName>` →
+   self-join brand.
+3. `MatchesBetween<...>['length']` is 0 → missing brand.
+4. `MatchesBetween<...>['length']` is 1 → no brand (ok).
+5. Otherwise → ambiguous brand.
+
+`MatchesBetween` is a `[...FkMatches<LFKs, RSchema, RName>,
+...FkMatches<RFKs, LSchema, LName>]` tuple — single-column FK
+matches in either direction. Composite FKs are filtered out by a
+`Head["columns"]["length"] extends 1` check.
+
+`Database.run`'s relation overload rejects all four brands:
+
+```ts
+run<Columns, FKs>(
+  query: Relation<Columns, FKs> & {
+    readonly _columns: {
+      readonly __tenonDuplicateColumns?: never;
+      readonly __tenonInferenceSelfJoin?: never;
+      readonly __tenonInferenceMissing?: never;
+      readonly __tenonInferenceAmbiguous?: never;
+    };
+  },
+  ...
+);
+```
+
+Calling `.on(predicate)` on the JoinBuilder returns plain
+`Relation<MergedColumns<L, R>, MergedForeignKeys<LFKs, RFKs>>` —
+no brand — so an explicit predicate clears any inference error.
 
 ## `InsertableAttrs<Columns>`
 

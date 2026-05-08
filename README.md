@@ -33,6 +33,15 @@ const recent = await db.run(
     .project(users.email, posts.body.as("post")),
 );
 //    ^? Array<{ email: string; post: string }>
+
+// FK-inferred join: with a single-column foreign key on posts,
+// `tenon-generate` emits the FK metadata and the serialiser fills
+// in the ON predicate. Ambiguous, missing, and self-join cases
+// surface as TypeScript errors at the `db.run(...)` call site.
+const stories = await db.run(
+  posts.innerJoin(users).project(posts.body, users.email),
+);
+//    ^? Array<{ body: string; email: string }>
 ```
 
 `tenon` also supports single-row `INSERT` and predicate-narrowed

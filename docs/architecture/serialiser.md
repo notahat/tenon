@@ -85,6 +85,32 @@ construction, every fluent-built relation has one — only direct
 AST construction could produce an unrooted tree, and that's a
 programmer error.
 
+### FK-inferred ON predicates
+
+When `collect` encounters an `InnerJoin` whose `on` is `null`,
+it calls `inferJoinPredicate(source, right)` to synthesise the
+predicate. The function:
+
+1. Walks the join's `source` subtree and collects every
+   `TableRef`.
+2. For each source TableRef, scans both directions for
+   single-column FK matches against `right`. Composite FKs are
+   skipped; same-physical-table pairs are skipped (so the
+   "candidate match" loop doesn't accidentally pick a
+   self-referential FK).
+3. Builds a `BinaryOp("=")` AST node from the unique match.
+
+If zero or more than one match is found, the serialiser throws
+a defensive error (the type-level brand should have caught the
+condition earlier — these throws cover the
+type-system-bypassed case). The "no FK" message singles out
+the right table so users know which join to fix.
+
+The lookup runs at serialise time, not at fluent-layer
+construction time, so a chained `.innerJoin(b).innerJoin(c)`
+walk re-runs the lookup for each `InnerJoin` node in the AST as
+the serialiser collects clauses.
+
 ## INSERT: `insertToSql` / `emitInsert`
 
 Straightforward shape:

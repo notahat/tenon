@@ -53,14 +53,22 @@ Each variant carries a `kind` discriminator and a `source` field
 Limit { source: Where { source: TableRef }, count: 10 }
 ```
 
-A `TableRef` always carries a schema, name, and an alias (which
-defaults to `null` and is treated as "use the name"). Aliases
-let `defineTable(...).as("u")` produce a fresh table whose
-columns are qualified by `"u"` rather than the physical name.
+A `TableRef` always carries a schema, name, an alias (which
+defaults to `null` and is treated as "use the name"), and a
+`foreignKeys` array. Aliases let `defineTable(...).as("u")`
+produce a fresh table whose columns are qualified by `"u"`
+rather than the physical name. The FK list is what the
+serialiser reads when filling in an `InnerJoin`'s ON predicate
+from foreign-key metadata.
 
 `InnerJoin` restricts the right side to a `TableRef` — joining
 sub-queries is not yet supported. The fluent layer
-(`Relation.innerJoin`) enforces this with a runtime check.
+(`Relation.innerJoin`) enforces this with a runtime check. Its
+`on` field is `ExpressionNode | null`; a null means "infer the
+predicate at serialise time from the FK metadata on the source
+and right TableRefs". Calling `.on(predicate)` on the fluent
+JoinBuilder rebuilds the AST with the explicit predicate baked
+in.
 
 ## `ExpressionNode`
 

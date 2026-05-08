@@ -61,6 +61,35 @@ The export name is derived from the table name. Non-identifier
 characters are replaced with underscores; a leading digit is
 prefixed with `_`.
 
+When a table has single-column foreign keys, they're emitted as
+a fourth argument to `defineTable`:
+
+```ts
+export const posts = defineTable(
+  "public",
+  "posts",
+  {
+    id: columnType<number, "int4">({ ... }),
+    author_id: columnType<number, "int4">({ ... }),
+  },
+  [
+    {
+      name: "posts_author_id_fkey",
+      columns: ["author_id"],
+      referencedSchema: "public",
+      referencedTable: "users",
+      referencedColumns: ["id"],
+    },
+  ],
+);
+```
+
+Composite (multi-column) FKs are skipped at emit time with a
+short two-line comment above the `defineTable` call —
+single-column FK inference is the v1 surface. The constraint
+still exists in the database; it just doesn't participate in
+type-level join inference.
+
 ## Type mapping
 
 The default Postgres-to-TypeScript map is in the

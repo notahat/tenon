@@ -29,8 +29,9 @@ either way; the class wrapping is structural.
 Several classes carry `declare readonly _xxx` fields:
 
 ```ts
-class Relation<Columns> {
+class Relation<Columns, FKs = readonly []> {
   declare readonly _columns: Columns;
+  declare readonly _foreignKeys: FKs;
   // ...
 }
 
@@ -47,7 +48,28 @@ class Delete<Columns, Returning> {
   declare readonly _returning: Returning;
   // ...
 }
+
+class JoinBuilder<L, LFKs, LSchema, LName, R, RFKs, RSchema, RName>
+  extends Relation<MergedColumnsWithFkBrand<...>, MergedForeignKeys<LFKs, RFKs>>
+{
+  declare readonly _left: L;
+  declare readonly _leftFks: LFKs;
+  declare readonly _leftSchema: LSchema;
+  declare readonly _leftPhysicalName: LName;
+  declare readonly _right: R;
+  declare readonly _rightFks: RFKs;
+  declare readonly _rightSchema: RSchema;
+  declare readonly _rightPhysicalName: RName;
+  // ...
+}
 ```
+
+`JoinBuilder` extends `Relation` so a JoinBuilder is itself
+runnable — the serialiser fills in the ON predicate from FK
+metadata when no `.on(...)` was supplied. `Relation` and
+`JoinBuilder` are co-located in `Relation.ts` because the
+`extends` clause would otherwise hit an ESM circular import on
+module load.
 
 `declare` means TypeScript believes the field exists; at runtime
 it doesn't. Phantoms are **type-system carriers**: a way to make

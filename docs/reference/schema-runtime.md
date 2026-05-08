@@ -11,25 +11,44 @@ import {
   defineTable,
   type ColumnType,
   type ColumnsShape,
+  type ForeignKey,
   type Table,
 } from "@notahat/tenon/schema-runtime";
 ```
 
-## `defineTable(schema, name, columns)`
+## `defineTable(schema, name, columns, foreignKeys?)`
 
 ```ts
-function defineTable<TableName extends string, Columns extends ColumnsShape>(
-  schema: string,
+function defineTable<
+  TableName extends string,
+  Schema extends string,
+  Columns extends ColumnsShape,
+  const FKs extends readonly ForeignKey[] = readonly [],
+>(
+  schema: Schema,
   name: TableName,
   columns: Columns,
-): Table<TableName, Columns>;
+  foreignKeys?: FKs,
+): Table<TableName, Columns, FKs, Schema, TableName>;
 ```
 
 Build a runtime [`Table`](table.md) from a schema declaration.
 The returned value is a `Relation` with one [`Column`](column-and-expressions.md)
 accessor merged in per declared column, plus `.as`, `.insert`,
-`.where`, `.delete`, `.deleteAll`. Generated schema files call
-this once per table.
+`.where`, `.delete`, `.deleteAll`, and `.innerJoin`. Generated
+schema files call this once per table.
+
+The `Schema` and `TableName` generics flow through to the
+returned `Table`'s phantom `_schema` and `_physicalName` fields.
+The fluent layer reads those literal types when computing the
+self-join / missing-FK / ambiguous-FK brands at `db.run(...)`.
+
+The optional `foreignKeys` argument records the table's outgoing
+single-column foreign keys for join inference. Composite FKs are
+filtered out at emit time; pass them as `as const` (which
+`tenon-generate` does) so the literal column and table names
+flow into the type. See the [joins guide](../guide/joins.md#fk-inferred-on-predicates)
+for the call-site behaviour.
 
 ## `columnType<TsType, SqlTag>(flags)`
 
@@ -78,11 +97,29 @@ type ColumnsShape = Readonly<
 A columns map as accepted by `defineTable`. Used as the constraint
 on every `Columns` generic in tenon.
 
-## `Table<Alias, Columns>`
+## `Table<Alias, Columns, FKs, Schema, PhysicalName>`
 
 The shape of a defined table. See [`Table`](table.md) — that page
 is the canonical reference; the type is re-exported here because
 generated schema files reference it (rarely, in helper types).
+
+## `ForeignKey`
+
+```ts
+interface ForeignKey {
+  readonly name: string;
+  readonly columns: readonly string[];
+  readonly referencedSchema: string;
+  readonly referencedTable: string;
+  readonly referencedColumns: readonly string[];
+}
+```
+
+One foreign-key constraint as recorded by `tenon-generate`.
+Composite FKs would have `columns.length > 1`; in v1 the emitter
+drops them before they reach `defineTable`. Schema and table
+names refer to physical names — aliasing on the consuming Table
+doesn't rewrite them.
 
 ## See also
 

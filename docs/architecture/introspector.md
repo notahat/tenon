@@ -14,10 +14,10 @@ bin.ts (CLI argv parsing)
 generate.ts: GenerateOptions  →  open pg.Client
     |
     v
-readCatalog.ts: pg_catalog query  →  CatalogColumn[]
+readCatalog.ts: pg_catalog queries  →  { columns, foreignKeys }
     |
     v
-emit.ts: CatalogColumn[]  →  TypeScript file string
+emit.ts: catalog data  →  TypeScript file string
     |
     v
 generate.ts: writeFile
@@ -97,6 +97,60 @@ Result rows are ordered by `(schema, table, attnum)` so downstream
 emitters can preserve column order within each table without
 re-sorting.
 
+A second query reads foreign-key constraints from
+`pg_constraint`:
+
+```sql
+SELECT
+  con.conname        AS name,
+  rel_n.nspname      AS schema,
+  rel_c.relname      AS table_name,
+  array_agg(rel_a.attname::text ORDER BY i) AS columns,
+  ref_n.nspname      AS referenced_schema,
+  ref_c.relname      AS referenced_table,
+  array_agg(ref_a.attname::text ORDER BY i) AS referenced_columns
+FROM pg_constraint con
+JOIN pg_class      rel_c ON rel_c.oid = con.conrelid
+JOIN pg_namespace  rel_n ON rel_n.oid = rel_c.relnamespace
+JOIN pg_class      ref_c ON ref_c.oid = con.confrelid
+JOIN pg_namespace  ref_n ON ref_n.oid = ref_c.relnamespace
+JOIN LATERAL generate_subscripts(con.conkey, 1) AS i ON true
+JOIN pg_attribute  rel_a
+  ON rel_a.attrelid = con.conrelid AND rel_a.attnum = con.conkey[i]
+JOIN pg_attribute  ref_a
+  ON ref_a.attrelid = con.confrelid AND ref_a.attnum = con.confkey[i]
+WHERE con.contype = 'f'
+  AND rel_n.nspname = ANY($1::text[])
+GROUP BY con.oid, con.conname,
+         rel_n.nspname, rel_c.relname,
+         ref_n.nspname, ref_c.relname
+ORDER BY rel_n.nspname, rel_c.relname, con.conname
+```
+
+Notes:
+
+- **`generate_subscripts`** fans `conkey`/`confkey` out into one
+  row per (referencing column, referenced column) pair, then
+  `array_agg(... ORDER BY i)` re-aggregates back into paired
+  arrays. Composite FKs come back with `columns.length > 1`.
+- **`::text` cast** — `attname` is the Postgres `name` type, not
+  `text`. `pg`'s default array decoder returns `name[]` columns
+  as a string like `"{author_id}"` rather than a JS array. The
+  cast forces a `text[]` shape that pg parses correctly.
+- **Filtering by referencing schema only.** A FK whose referenced
+  table sits in a schema that isn't in the introspection list is
+  still recorded (the FK belongs to the table in the listed
+  schema). Cross-schema FKs round-trip faithfully.
+
+The combined return shape:
+
+```ts
+interface Catalog {
+  readonly columns: readonly CatalogColumn[];
+  readonly foreignKeys: readonly CatalogForeignKey[];
+}
+```
+
 ## `mapTypes.ts` — Postgres `typname` → TypeScript
 
 A small explicit lookup (the table is in
@@ -129,13 +183,34 @@ export const <exportName> = defineTable(<schema>, <table>, {
     isGenerated: <bool>,
   }),  // [<fallback comment if applicable>]
   ...
-});
+}, [
+  // single-column FKs only — composite FKs are skipped at emit
+  // with a comment.
+  {
+    name: "<constraintName>",
+    columns: ["<col>"],
+    referencedSchema: "<schema>",
+    referencedTable: "<table>",
+    referencedColumns: ["<col>"],
+  },
+  ...
+]);
 ```
 
 `exportName` is sanitised: non-identifier characters become
 underscores, a leading digit is prefixed with `_`. Database
 case is preserved otherwise; `users` stays `users`,
 `UserSessions` stays `UserSessions`.
+
+The fourth `defineTable` argument is omitted entirely when the
+table has no single-column FKs. Composite FKs get a two-line
+generated comment above the table:
+
+```
+// Skipped composite foreign key "..." on (col1, col2) referencing
+// schema.table:
+// composite FKs are not yet surfaced in tenon's type-level inference.
+```
 
 The header is fixed:
 

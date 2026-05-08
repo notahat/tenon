@@ -1,17 +1,19 @@
 # Joins
 
-Inner joins, self-joins via aliasing, and the compile-time error
-that flags ambiguous joined columns.
+Inner joins, self-joins via aliasing, the compile-time error
+that flags ambiguous joined columns, and FK-inferred ON
+predicates.
 
 Outer joins (`leftJoin`, `rightJoin`, `fullJoin`) and joining
 sub-queries are not yet supported.
 
 ## Inner joins
 
-`relation.innerJoin(otherTable)` returns a builder whose only
-method is `.on(predicate)`. Splitting the join in two means
-"forgot the ON clause" is a compile error rather than a Cartesian
-product:
+`relation.innerJoin(otherTable)` returns a `JoinBuilder`. When an
+unambiguous foreign key connects the two sides, the builder is
+**runnable directly** — the serialiser fills in the ON clause
+from FK metadata. Calling `.on(predicate)` is still available
+when you want to override or when no FK match exists.
 
 ```ts
 const recent = await db.run(
@@ -30,6 +32,71 @@ reference columns from either side.
 The right-hand side of an inner join must be a defined table
 (something `defineTable(...)` produced) — joining a derived
 relation isn't supported yet.
+
+## FK-inferred ON predicates
+
+When `tenon-generate` reads a single-column foreign key from
+`pg_constraint`, the FK is recorded on the generated `Table`'s
+runtime and type-level metadata. `innerJoin` then becomes
+runnable without `.on(...)`:
+
+```ts
+const recent = await db.run(
+  posts.innerJoin(users).project(posts.body, users.email),
+);
+//    ^? Array<{ body: string; email: string }>
+//
+// emits: SELECT "posts"."body", "users"."email"
+//        FROM "public"."posts"
+//        INNER JOIN "public"."users"
+//        ON ("posts"."author_id" = "users"."id")
+```
+
+The ON clause comes from the FK on `posts` (`author_id` →
+`users.id`). Direction doesn't matter — `users.innerJoin(posts)`
+infers the same predicate. Composite FKs are skipped (they fall
+out of the inference path because the type machinery only
+matches single-column FKs).
+
+When the FK is ambiguous, missing, or self-referential, the
+type system rejects `db.run(...)` with a literal-template error
+message. The three cases:
+
+```ts
+// Missing FK: no constraint between the two tables.
+const orphan = ...;
+db.run(orphan.innerJoin(users));
+//     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+// Error: tenon: cannot infer ON predicate; no foreign key
+//   between public.orphans and public.users; call .on(...)
+//   explicitly
+
+// Ambiguous FK: more than one constraint connects the sides
+// (e.g. accounts.creator_id and accounts.owner_id both →
+// users.id).
+db.run(accounts.innerJoin(users));
+//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// Error: tenon: cannot infer ON predicate; ambiguous foreign
+//   keys between public.accounts and public.users; call
+//   .on(...) explicitly
+
+// Self-join: same physical table on both sides.
+db.run(users.innerJoin(users.as("manager")));
+//     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+// Error: tenon: cannot infer ON predicate for self-join on
+//   public.users; call .on(...) explicitly or alias one side
+```
+
+Each error is just a TypeScript error at the `db.run(...)` call
+site — call `.on(predicate)` to clear it. There's a defensive
+runtime throw for the same cases in case the type system was
+bypassed (e.g. via `as`-cast).
+
+The FK inference is keyed on the literal physical schema and
+table name, so `Table.as("alias")` doesn't disrupt the brand:
+the alias changes the column qualifier but the inference
+machinery still sees both sides as `public.users`. That's why
+self-join detection works even when both sides are aliased.
 
 ## Self-joins via `Table.as("alias")`
 

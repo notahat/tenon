@@ -1,8 +1,21 @@
-# `Table<Alias, Columns>`
+# `Table<Alias, Columns, FKs, Schema, PhysicalName>`
 
-The result of `defineTable(schema, name, columns)`. A `Table` is a
-`Relation<Columns>` with one `Column` accessor merged in per
-declared column, plus the methods below.
+The result of `defineTable(schema, name, columns, foreignKeys?)`.
+A `Table` is a `Relation<Columns, FKs>` with one `Column`
+accessor merged in per declared column, plus the methods below.
+
+Five generics carry the table's identity and metadata:
+
+- `Alias` — the column-reference qualifier (changes via `.as`).
+- `Columns` — the columns shape.
+- `FKs` — the foreign-key tuple emitted for this table.
+- `Schema` — the literal schema name.
+- `PhysicalName` — the literal physical table name (preserved
+  across aliasing).
+
+The literal `Schema` and `PhysicalName` generics let the
+type-level join inference detect self-joins and search FK records
+by physical name.
 
 `Table` is not a class you instantiate from the main entry —
 generated schema files import `defineTable` from
@@ -13,39 +26,81 @@ exported from the schema-runtime subpath as `Table`. See
 ## Shape
 
 ```ts
-type Table<Alias, Columns> = Omit<Relation<Columns>, "where"> &
-  Readonly<{ _tableName: Alias; _schema: string }> & {
-    readonly [Name in keyof Columns & string]: Column<
-      Alias,
-      Name,
-      Columns[Name]
-    >;
-  } & {
-    as<NewAlias extends string>(alias: NewAlias): Table<NewAlias, Columns>;
-    insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null>;
-    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns>;
-    delete(): Delete<Columns, null>;
-    deleteAll(): Delete<Columns, null>;
-  };
+type Table<Alias, Columns, FKs, Schema, PhysicalName> =
+  Omit<Relation<Columns, FKs>, "where" | "innerJoin"> &
+    Readonly<{
+      _tableName: Alias;
+      _schema: Schema;
+      _physicalName: PhysicalName;
+      _foreignKeys: FKs;
+    }> & {
+      readonly [Name in keyof Columns & string]: Column<
+        Alias, Name, Columns[Name]
+      >;
+    } & {
+      as<NewAlias extends string>(
+        alias: NewAlias,
+      ): Table<NewAlias, Columns, FKs, Schema, PhysicalName>;
+      innerJoin<RColumns, RFKs, RSchema, RPhysicalName>(
+        right: ...,
+      ): JoinBuilder<
+        Columns, FKs, Schema, PhysicalName,
+        RColumns, RFKs, RSchema, RPhysicalName
+      >;
+      insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null>;
+      where(predicate: Expression<boolean>): DeletableScope<Alias, Columns, FKs>;
+      delete(): Delete<Columns, null>;
+      deleteAll(): Delete<Columns, null>;
+    };
 ```
 
 The `Alias` parameter is the qualifier used in column references
 and (when not equal to the physical name) in `FROM ... AS ...`.
 After `defineTable` it equals the table name; after `.as("u")` it
-carries the user-supplied alias.
+carries the user-supplied alias. `Schema` and `PhysicalName` stay
+locked to the values from `defineTable` so self-join detection
+sees through aliasing.
 
 ## Methods
 
 ### `.as(alias)`
 
 ```ts
-as<NewAlias extends string>(alias: NewAlias): Table<NewAlias, Columns>;
+as<NewAlias extends string>(
+  alias: NewAlias,
+): Table<NewAlias, Columns, FKs, Schema, PhysicalName>;
 ```
 
 Re-alias this table for use in joins. Returns a `Table` that
 shares the same physical schema and name but qualifies its
 columns by the new alias. Enables self-joins and disambiguation
-in joins with overlapping column names.
+in joins with overlapping column names. `Schema`, `PhysicalName`,
+and `FKs` are preserved unchanged, so the FK-inference brand
+treats `users.as("u")` and `users.as("v")` as the same physical
+table.
+
+### `.innerJoin(rightTable)`
+
+```ts
+innerJoin<RColumns, RFKs, RSchema, RPhysicalName>(
+  right: Relation<RColumns, RFKs> & {
+    readonly _tableName: string;
+    readonly _schema: RSchema;
+    readonly _physicalName: RPhysicalName;
+  },
+): JoinBuilder<
+  Columns, FKs, Schema, PhysicalName,
+  RColumns, RFKs, RSchema, RPhysicalName
+>;
+```
+
+Begin an inner join, capturing the literal physical identities
+of both sides so the resulting `JoinBuilder` carries the
+inference brand on its merged-columns shape. This is a
+table-specific override of [`Relation.innerJoin`](relation.md#innerjoinrighttable);
+the loose form on `Relation` keeps `string` defaults for the
+identity generics, which disables the brand for chained left
+sides.
 
 ### `.insert(attrs)`
 

@@ -82,6 +82,47 @@ Each column carries five pieces of information:
   columns cannot be inserted; they're absent from the insert attrs
   type entirely.
 
+## Foreign keys
+
+When a table has foreign-key constraints, `tenon-generate` emits
+them as a fourth argument to `defineTable`:
+
+```ts
+export const posts = defineTable(
+  "public",
+  "posts",
+  {
+    id: columnType<number, "int4">({ ... }),
+    author_id: columnType<number, "int4">({ ... }),
+  },
+  [
+    {
+      name: "posts_author_id_fkey",
+      columns: ["author_id"],
+      referencedSchema: "public",
+      referencedTable: "users",
+      referencedColumns: ["id"],
+    },
+  ],
+);
+```
+
+The fluent layer reads this metadata to infer the `ON` predicate
+when `innerJoin(...)` is called without `.on(...)`. See
+[joins](joins.md#fk-inferred-on-predicates) for the call-site
+behaviour.
+
+Two notes on what `tenon-generate` emits:
+
+- **Composite FKs are dropped** with a generated comment.
+  Single-column FK inference is the v1 surface; multi-column
+  FKs aren't yet supported by the type-level matcher.
+- **Cross-schema FKs are recorded as-is.** The `referencedSchema`
+  is whatever Postgres reports, even when that schema isn't in
+  your `--schemas` list. The Table value for the referenced side
+  still has to exist in your generated code for inference to
+  fire, but the FK record is faithful to the catalog.
+
 ## Type mapping
 
 Most Postgres types map straightforwardly: `int4` to `number`,

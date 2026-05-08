@@ -113,3 +113,53 @@ column flags:
   supplying one is a "no such property" error.
 
 See the [inserts guide](../guide/inserts.md).
+
+## `ForeignKeyTuple`
+
+```ts
+type ForeignKeyTuple = readonly ForeignKey[];
+```
+
+The shape of the FKs generic threaded through `Relation`,
+`Table`, and `JoinBuilder`. Each entry is the runtime
+[`ForeignKey`](schema-runtime.md#foreignkey) record from
+schema-runtime.
+
+## `MergedForeignKeys`
+
+```ts
+type MergedForeignKeys<L extends ForeignKeyTuple, R extends ForeignKeyTuple>;
+```
+
+Combined FK list when two relations are joined: `[...L, ...R]`.
+Composite FKs are filtered out at emit time, so every entry is
+single-column.
+
+## `MergedColumnsWithFkBrand`
+
+```ts
+type MergedColumnsWithFkBrand<
+  L, R, LFKs, LSchema, LName, RFKs, RSchema, RName
+>;
+```
+
+Computes the merged columns shape for a `JoinBuilder`,
+intersected with whichever inference brand applies. Picks one
+of:
+
+- `__tenonInferenceSelfJoin` when both sides are the same
+  physical `(schema, name)`.
+- `__tenonInferenceMissing` when no single-column FK connects
+  the two sides in either direction.
+- `__tenonInferenceAmbiguous` when more than one such FK
+  connects them.
+- No brand otherwise (or when any of the four identity generics
+  is the wide `string` type, e.g. for chained left sides).
+
+Each brand carries a literal-template error message naming the
+offending tables. The brand surfaces at `Database.run` exactly
+like `MergedColumns`'s duplicate-column brand. Calling
+`.on(predicate)` on the JoinBuilder returns plain `MergedColumns`
+(no brand), so an explicit predicate clears the error.
+
+See the [joins guide](../guide/joins.md#fk-inferred-on-predicates).
