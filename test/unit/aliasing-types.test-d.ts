@@ -7,6 +7,7 @@ import type { Column } from "../../src/query/Column.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import type { ColumnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
+import type { ForeignKey } from "../../src/schema-runtime/foreignKey.js";
 
 declare const db: Database;
 
@@ -64,4 +65,11 @@ test("self-join without .project fails db.run on the duplicate brand", () => {
   const joined = users.innerJoin(manager).on(users.manager_id.eq(manager.id));
   // @ts-expect-error self-joined relation has duplicate columns; project first
   void db.run(joined);
+});
+
+test("_foreignKeys is exposed as a readonly array of ForeignKey", () => {
+  expectTypeOf(users._foreignKeys).toEqualTypeOf<readonly ForeignKey[]>();
+  expectTypeOf(users.as("u")._foreignKeys).toEqualTypeOf<
+    readonly ForeignKey[]
+  >();
 });

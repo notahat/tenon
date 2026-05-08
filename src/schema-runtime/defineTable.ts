@@ -21,6 +21,7 @@ import { Insert } from "../query/Insert.js";
 import { Relation } from "../query/Relation.js";
 import type { InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
+import type { ForeignKey } from "./foreignKey.js";
 
 /**
  * The shape of a defined table: a Relation with column accessors
@@ -36,6 +37,7 @@ export type Table<Alias extends string, Columns extends ColumnsShape> = Omit<
   Readonly<{
     _tableName: Alias;
     _schema: string;
+    _foreignKeys: readonly ForeignKey[];
   }> & {
     readonly [Name in keyof Columns & string]: Column<
       Alias,
@@ -83,7 +85,10 @@ export type Table<Alias extends string, Columns extends ColumnsShape> = Omit<
 
 /**
  * Define a table. The default alias for column qualification is the
- * table name itself; rename it for joins via `.as("u")`.
+ * table name itself; rename it for joins via `.as("u")`. The optional
+ * `foreignKeys` argument records this table's outgoing FK
+ * relationships, used by the fluent layer to infer ON predicates for
+ * `innerJoin` calls that omit `.on(...)`.
  */
 export function defineTable<
   TableName extends string,
@@ -92,21 +97,27 @@ export function defineTable<
   schema: string,
   name: TableName,
   columns: Columns,
+  foreignKeys: readonly ForeignKey[] = [],
 ): Table<TableName, Columns> {
-  return buildTable(schema, name, name, columns) as Table<TableName, Columns>;
+  return buildTable(schema, name, name, columns, foreignKeys) as Table<
+    TableName,
+    Columns
+  >;
 }
 
 /**
  * Construct a Table for the given physical (schema, name) under the
  * given column-qualification alias. Shared between `defineTable` (where
  * the alias defaults to the table name) and `Table.as` (where the user
- * picks the alias).
+ * picks the alias). FK metadata is preserved unchanged across aliasing
+ * because FKs reference *physical* table names, not aliases.
  */
 function buildTable<Alias extends string, Columns extends ColumnsShape>(
   schema: string,
   name: string,
   alias: Alias,
   columns: Columns,
+  foreignKeys: readonly ForeignKey[],
 ): Table<Alias, Columns> {
   const node =
     alias === name
@@ -127,8 +138,9 @@ function buildTable<Alias extends string, Columns extends ColumnsShape>(
   Object.assign(relation, accessors, {
     _tableName: alias,
     _schema: schema,
+    _foreignKeys: foreignKeys,
     as<NewAlias extends string>(newAlias: NewAlias): Table<NewAlias, Columns> {
-      return buildTable(schema, name, newAlias, columns);
+      return buildTable(schema, name, newAlias, columns, foreignKeys);
     },
     insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null> {
       const columnValues = Object.entries(attrs as Record<string, unknown>).map(

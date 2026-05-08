@@ -74,4 +74,88 @@ describe("defineTable", () => {
       column: "id",
     });
   });
+
+  it("defaults the foreign-key list to empty when none are supplied", () => {
+    const users = defineTable("public", "users", {
+      id: columnType<number, "int4">({
+        nullable: false,
+        hasDefault: false,
+        isGenerated: false,
+      }),
+    });
+
+    expect(users._foreignKeys).toEqual([]);
+  });
+
+  it("stores the supplied foreign-key list verbatim", () => {
+    const posts = defineTable(
+      "public",
+      "posts",
+      {
+        id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: true,
+          isGenerated: false,
+        }),
+        author_id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+      },
+      [
+        {
+          name: "posts_author_id_fkey",
+          columns: ["author_id"],
+          referencedSchema: "public",
+          referencedTable: "users",
+          referencedColumns: ["id"],
+        },
+      ],
+    );
+
+    expect(posts._foreignKeys).toEqual([
+      {
+        name: "posts_author_id_fkey",
+        columns: ["author_id"],
+        referencedSchema: "public",
+        referencedTable: "users",
+        referencedColumns: ["id"],
+      },
+    ]);
+  });
+
+  it("preserves foreign keys when a table is aliased", () => {
+    const posts = defineTable(
+      "public",
+      "posts",
+      {
+        author_id: columnType<number, "int4">({
+          nullable: false,
+          hasDefault: false,
+          isGenerated: false,
+        }),
+      },
+      [
+        {
+          name: "posts_author_id_fkey",
+          columns: ["author_id"],
+          referencedSchema: "public",
+          referencedTable: "users",
+          referencedColumns: ["id"],
+        },
+      ],
+    );
+
+    const aliased = posts.as("p");
+    expect(aliased._foreignKeys).toEqual([
+      {
+        name: "posts_author_id_fkey",
+        columns: ["author_id"],
+        referencedSchema: "public",
+        referencedTable: "users",
+        referencedColumns: ["id"],
+      },
+    ]);
+  });
 });
