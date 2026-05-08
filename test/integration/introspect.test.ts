@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { generateSchema } from "../../src/introspect/generate.js";
+import { readCatalog } from "../../src/introspect/readCatalog.js";
 import { sharedPool, withTestSchema } from "./setup.js";
 
 const DATABASE_URL = process.env["DATABASE_URL"];
@@ -81,6 +82,154 @@ describe("generateSchema", () => {
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }
+    });
+  });
+
+  it("ignores foreign keys when none are declared", async () => {
+    await withTestSchema("tenon_introspect_no_fk", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."solo" (id integer NOT NULL)`,
+        );
+        const catalog = await readCatalog(client, [schema]);
+        expect(catalog.foreignKeys).toEqual([]);
+      } finally {
+        client.release();
+      }
+    });
+  });
+
+  it("reads single-column foreign keys from pg_constraint", async () => {
+    await withTestSchema("tenon_introspect_fk", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."users" (id integer PRIMARY KEY)`,
+        );
+        await client.query(
+          `CREATE TABLE "${schema}"."posts" (
+             id integer PRIMARY KEY,
+             author_id integer NOT NULL REFERENCES "${schema}"."users"(id)
+           )`,
+        );
+        const catalog = await readCatalog(client, [schema]);
+        expect(catalog.foreignKeys).toEqual([
+          {
+            name: "posts_author_id_fkey",
+            schema,
+            tableName: "posts",
+            columns: ["author_id"],
+            referencedSchema: schema,
+            referencedTable: "users",
+            referencedColumns: ["id"],
+          },
+        ]);
+      } finally {
+        client.release();
+      }
+    });
+  });
+
+  it("reads composite foreign keys preserving column order", async () => {
+    await withTestSchema("tenon_introspect_fk_composite", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."orders" (
+             id integer NOT NULL,
+             tenant integer NOT NULL,
+             PRIMARY KEY (tenant, id)
+           )`,
+        );
+        await client.query(
+          `CREATE TABLE "${schema}"."order_lines" (
+             order_id integer NOT NULL,
+             tenant_id integer NOT NULL,
+             FOREIGN KEY (tenant_id, order_id)
+               REFERENCES "${schema}"."orders" (tenant, id)
+           )`,
+        );
+        const catalog = await readCatalog(client, [schema]);
+        const compositeFks = catalog.foreignKeys.filter(
+          (fk) => fk.tableName === "order_lines",
+        );
+        expect(compositeFks).toEqual([
+          {
+            name: expect.any(String),
+            schema,
+            tableName: "order_lines",
+            columns: ["tenant_id", "order_id"],
+            referencedSchema: schema,
+            referencedTable: "orders",
+            referencedColumns: ["tenant", "id"],
+          },
+        ]);
+      } finally {
+        client.release();
+      }
+    });
+  });
+
+  it("reads self-referential foreign keys", async () => {
+    await withTestSchema("tenon_introspect_fk_self", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."employees" (
+             id integer PRIMARY KEY,
+             manager_id integer REFERENCES "${schema}"."employees"(id)
+           )`,
+        );
+        const catalog = await readCatalog(client, [schema]);
+        expect(catalog.foreignKeys).toEqual([
+          {
+            name: "employees_manager_id_fkey",
+            schema,
+            tableName: "employees",
+            columns: ["manager_id"],
+            referencedSchema: schema,
+            referencedTable: "employees",
+            referencedColumns: ["id"],
+          },
+        ]);
+      } finally {
+        client.release();
+      }
+    });
+  });
+
+  it("reads cross-schema foreign keys", async () => {
+    await withTestSchema("tenon_introspect_fk_xschema_a", async (parent) => {
+      await withTestSchema("tenon_introspect_fk_xschema_b", async (child) => {
+        const client = await sharedPool.connect();
+        try {
+          await client.query(
+            `CREATE TABLE "${parent}"."customers" (id integer PRIMARY KEY)`,
+          );
+          await client.query(
+            `CREATE TABLE "${child}"."events" (
+               id integer PRIMARY KEY,
+               customer_id integer NOT NULL
+                 REFERENCES "${parent}"."customers"(id)
+             )`,
+          );
+          const catalog = await readCatalog(client, [child]);
+          expect(catalog.foreignKeys).toEqual([
+            {
+              name: "events_customer_id_fkey",
+              schema: child,
+              tableName: "events",
+              columns: ["customer_id"],
+              referencedSchema: parent,
+              referencedTable: "customers",
+              referencedColumns: ["id"],
+            },
+          ]);
+        } finally {
+          client.release();
+        }
+      });
     });
   });
 

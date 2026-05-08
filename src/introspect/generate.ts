@@ -27,7 +27,7 @@ export async function generateSchema(options: GenerateOptions): Promise<void> {
   const client = new pg.Client({ connectionString: options.databaseUrl });
   await client.connect();
   try {
-    const columns = await readCatalog(client, options.schemas);
+    const { columns } = await readCatalog(client, options.schemas);
     const fileContents = emitSchemaFile(columns);
     await writeFile(options.outputPath, fileContents, "utf8");
   } finally {
