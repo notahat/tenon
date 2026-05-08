@@ -1,9 +1,29 @@
 // Fluent wrappers around relation AST trees: the base `Relation`
-// class and the join-builder subclass `JoinBuilder`. Both live in the
-// same file because JoinBuilder extends Relation and Relation creates
-// JoinBuilder values from `.innerJoin(...)`. Splitting them across
-// files would create a circular ESM import that fails at module load
-// (the `extends Relation` evaluates before Relation finishes loading).
+// class and the join-builder subclass `JoinBuilder`.
+//
+// `Relation` and `JoinBuilder` are co-located here because they form
+// one fluent layer: every `JoinBuilder` is a `Relation` with one
+// extra method, and `Relation.innerJoin` constructs `JoinBuilder`
+// values. The viable alternatives all cost more than co-location:
+//
+//   - Putting them in separate files needs either an ESM circular
+//     import (fails at the `extends Relation` evaluation when
+//     JoinBuilder.ts loads before Relation finishes initialising)
+//     or a module-init factory-registration hook (a runtime
+//     invariant — `setJoinBuilderFactory` must run before any
+//     `innerJoin` call — replacing a structural guarantee with an
+//     invisible one).
+//   - Replacing the class hierarchy with a `Relation<branded> & {
+//     on }` type alias structurally type-checks but quietly drops
+//     the FK-inference brand at `db.run(...)` time; the brand only
+//     surfaces correctly when JoinBuilder is a class instantiation.
+//   - Splitting `Relation` into a `BaseRelation` (no `innerJoin`)
+//     plus a `Relation` overlay breaks chained joins
+//     (`a.innerJoin(b).innerJoin(c)`), which need each step's
+//     result to carry `innerJoin` itself.
+//
+// `JoinBuilder.ts` exists as a one-line re-export so external
+// imports keep their natural path.
 //
 // Two phantom generics flow through every operator on Relation:
 // Columns describes the row shape after the chain runs, and FKs is a

@@ -1,6 +1,6 @@
-// Re-export of JoinBuilder, which is defined alongside Relation in
-// `./Relation.ts`. Co-locating the two classes avoids the ESM
-// circular import that the `JoinBuilder extends Relation`
-// inheritance would otherwise trigger.
+// Re-export of JoinBuilder. The class is defined alongside Relation
+// in `./Relation.ts` because the two form one fluent layer; that
+// file's header comment lays out the alternatives that were weighed
+// and rejected.
 
 export { JoinBuilder } from "./Relation.js";

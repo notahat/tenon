@@ -66,10 +66,12 @@ class JoinBuilder<L, LFKs, LSchema, LName, R, RFKs, RSchema, RName>
 
 `JoinBuilder` extends `Relation` so a JoinBuilder is itself
 runnable — the serialiser fills in the ON predicate from FK
-metadata when no `.on(...)` was supplied. `Relation` and
-`JoinBuilder` are co-located in `Relation.ts` because the
-`extends` clause would otherwise hit an ESM circular import on
-module load.
+metadata when no `.on(...)` was supplied. The two classes are
+co-located in `Relation.ts`; the file's header comment walks
+through the alternatives (separate files via factory
+registration, type-alias instead of class, `BaseRelation` split)
+and why each costs more than the co-location. `JoinBuilder.ts`
+is a one-line re-export so import paths stay natural.
 
 `declare` means TypeScript believes the field exists; at runtime
 it doesn't. Phantoms are **type-system carriers**: a way to make
