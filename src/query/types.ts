@@ -225,16 +225,63 @@ type MatchesBetween<
 ];
 
 /**
- * Compute the merged-columns shape for a JoinBuilder, intersected
- * with whichever inference brand applies. Order of checks:
- *   1. Any of the four identity generics is the wide `string` type
- *      (e.g. the left side was a chained relation, not a Table) →
- *      no brand. Inference is left to runtime.
+ * True when at least one of the four (schema, name) generics is the
+ * wide `string` type rather than a literal — the left side was a
+ * chained relation, not a Table, and the brand check has to bow out.
+ * `string extends Union` succeeds iff a member of the union is the
+ * wide `string`; one check covers all four.
+ */
+type AnyIdentityWidened<
+  LSchema extends string,
+  LName extends string,
+  RSchema extends string,
+  RName extends string,
+> = string extends LSchema | LName | RSchema | RName ? true : false;
+
+/**
+ * Pick the FK-inference brand (if any) that applies to a JoinBuilder.
+ * Order of checks:
+ *   1. Identity widened: bail out, no brand.
  *   2. Self-join: same physical (schema, name) on both sides.
- *   3. Missing FK: zero single-column matches in either direction.
- *   4. Ambiguous FK: more than one match.
- *   5. Otherwise: plain merged columns, no brand.
- *
+ *   3. Zero FK matches in either direction: missing.
+ *   4. Exactly one match: no brand.
+ *   5. More than one match: ambiguous.
+ */
+type FkBrand<
+  LFKs extends ForeignKeyTuple,
+  LSchema extends string,
+  LName extends string,
+  RFKs extends ForeignKeyTuple,
+  RSchema extends string,
+  RName extends string,
+> =
+  AnyIdentityWidened<LSchema, LName, RSchema, RName> extends true
+    ? unknown
+    : IsSamePhysicalTable<LSchema, LName, RSchema, RName> extends true
+      ? SelfJoinBrand<LSchema, LName>
+      : MatchesBetween<
+            LFKs,
+            LSchema,
+            LName,
+            RFKs,
+            RSchema,
+            RName
+          >["length"] extends 0
+        ? MissingFkBrand<LSchema, LName, RSchema, RName>
+        : MatchesBetween<
+              LFKs,
+              LSchema,
+              LName,
+              RFKs,
+              RSchema,
+              RName
+            >["length"] extends 1
+          ? unknown
+          : AmbiguousFkBrand<LSchema, LName, RSchema, RName>;
+
+/**
+ * Compute the merged-columns shape for a JoinBuilder, intersected
+ * with whichever inference brand applies (or `unknown` for none).
  * Calling `.on(predicate)` on the JoinBuilder returns plain
  * `MergedColumns` (no brand), so an explicit predicate clears any
  * inference error.
@@ -248,34 +295,8 @@ export type MergedColumnsWithFkBrand<
   RFKs extends ForeignKeyTuple,
   RSchema extends string,
   RName extends string,
-> =
-  // `string extends Union` is true iff at least one member of the
-  // union is the wide `string` (a literal would not satisfy it).
-  // One check covers all four "is widened" cases.
-  string extends LSchema | LName | RSchema | RName
-    ? MergedColumns<L, R>
-    : IsSamePhysicalTable<LSchema, LName, RSchema, RName> extends true
-      ? MergedColumns<L, R> & SelfJoinBrand<LSchema, LName>
-      : MatchesBetween<
-            LFKs,
-            LSchema,
-            LName,
-            RFKs,
-            RSchema,
-            RName
-          >["length"] extends 0
-        ? MergedColumns<L, R> & MissingFkBrand<LSchema, LName, RSchema, RName>
-        : MatchesBetween<
-              LFKs,
-              LSchema,
-              LName,
-              RFKs,
-              RSchema,
-              RName
-            >["length"] extends 1
-          ? MergedColumns<L, R>
-          : MergedColumns<L, R> &
-              AmbiguousFkBrand<LSchema, LName, RSchema, RName>;
+> = MergedColumns<L, R> &
+  FkBrand<LFKs, LSchema, LName, RFKs, RSchema, RName>;
 
 /**
  * Constraint applied by `Database.run` to a Relation's columns
