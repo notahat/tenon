@@ -11,7 +11,24 @@ describe("tableRef factory", () => {
       schema: "public",
       name: "users",
       alias: null,
+      foreignKeys: [],
     });
+  });
+
+  it("captures the foreign-key list when supplied", () => {
+    const fk = {
+      name: "posts_author_id_fkey",
+      columns: ["author_id"],
+      referencedSchema: "public",
+      referencedTable: "users",
+      referencedColumns: ["id"],
+    };
+    const node = tableRef({
+      schema: "public",
+      name: "posts",
+      foreignKeys: [fk],
+    });
+    expect(node.foreignKeys).toEqual([fk]);
   });
 
   it("captures an explicit alias when provided", () => {

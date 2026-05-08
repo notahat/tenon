@@ -19,6 +19,7 @@
 
 import type { DeleteNode } from "../ast/delete.js";
 import type { ExpressionNode } from "../ast/expression.js";
+import { binaryOp, columnRef } from "../ast/expression.js";
 import type { InsertNode } from "../ast/insert.js";
 import type {
   OrderTerm,
@@ -71,6 +72,15 @@ interface CollectedJoin {
   readonly on: ExpressionNode;
 }
 
+/** A candidate FK match for the inferred-ON path: which alias on
+ * which side joins on which column. */
+interface FkMatch {
+  readonly leftAlias: string;
+  readonly leftColumn: string;
+  readonly rightAlias: string;
+  readonly rightColumn: string;
+}
+
 interface CollectedClauses {
   table: TableRef | null;
   joins: CollectedJoin[];
@@ -113,18 +123,129 @@ function collect(node: RelationNode, clauses: CollectedClauses): void {
       if (clauses.offset === null) clauses.offset = node.count;
       collect(node.source, clauses);
       return;
-    case "InnerJoin":
+    case "InnerJoin": {
       // Joins are unshifted so the deepest (leftmost) join in the
       // source tree emits first, matching the user's chaining order:
       // a.innerJoin(b).innerJoin(c) emits `a JOIN b JOIN c`.
-      clauses.joins.unshift({
-        kind: "inner",
-        right: node.right,
-        on: node.on,
-      });
+      const on = node.on ?? inferJoinPredicate(node.source, node.right);
+      clauses.joins.unshift({ kind: "inner", right: node.right, on });
       collect(node.source, clauses);
       return;
+    }
   }
+}
+
+/** Walk a relation subtree and collect every TableRef it contains. */
+function collectTableRefs(node: RelationNode): readonly TableRef[] {
+  const refs: TableRef[] = [];
+  function visit(current: RelationNode): void {
+    switch (current.kind) {
+      case "TableRef":
+        refs.push(current);
+        return;
+      case "Project":
+      case "Where":
+      case "Order":
+      case "Limit":
+      case "Offset":
+        visit(current.source);
+        return;
+      case "InnerJoin":
+        visit(current.source);
+        refs.push(current.right);
+        return;
+    }
+  }
+  visit(node);
+  return refs;
+}
+
+/** Resolve a TableRef's column-qualifier alias (alias or physical name). */
+function aliasOf(tableRef: TableRef): string {
+  return tableRef.alias ?? tableRef.name;
+}
+
+/**
+ * Infer the ON predicate for a join by matching FK metadata between
+ * the source subtree and the right TableRef. The predicate is built
+ * from the unique single-column FK that connects the two sides;
+ * composite FKs and self-joins are ignored. Throws if zero or more
+ * than one FK matches — commit 7 will replace these throws with
+ * type-level brands that surface at db.run time.
+ */
+function inferJoinPredicate(
+  source: RelationNode,
+  right: TableRef,
+): ExpressionNode {
+  const sourceTables = collectTableRefs(source);
+  const matches: FkMatch[] = [];
+  for (const sourceTable of sourceTables) {
+    const sameTable =
+      sourceTable.schema === right.schema && sourceTable.name === right.name;
+    if (sameTable) continue;
+    for (const fk of sourceTable.foreignKeys) {
+      if (fk.columns.length !== 1) continue;
+      if (
+        fk.referencedSchema === right.schema &&
+        fk.referencedTable === right.name
+      ) {
+        matches.push({
+          leftAlias: aliasOf(sourceTable),
+          leftColumn: fk.columns[0]!,
+          rightAlias: aliasOf(right),
+          rightColumn: fk.referencedColumns[0]!,
+        });
+      }
+    }
+    for (const fk of right.foreignKeys) {
+      if (fk.columns.length !== 1) continue;
+      if (
+        fk.referencedSchema === sourceTable.schema &&
+        fk.referencedTable === sourceTable.name
+      ) {
+        matches.push({
+          leftAlias: aliasOf(right),
+          leftColumn: fk.columns[0]!,
+          rightAlias: aliasOf(sourceTable),
+          rightColumn: fk.referencedColumns[0]!,
+        });
+      }
+    }
+  }
+  if (matches.length === 0) {
+    if (selfJoinDetected(sourceTables, right)) {
+      throw new Error(
+        "Cannot infer ON predicate for a self-join; pass an explicit .on(...) predicate.",
+      );
+    }
+    throw new Error(
+      `tenon: cannot infer join predicate; no foreign key connects ${right.name} ` +
+        `with the joined source. Pass an explicit .on(...) predicate.`,
+    );
+  }
+  if (matches.length > 1) {
+    throw new Error(
+      `tenon: cannot infer join predicate; ambiguous foreign keys between ${right.name} ` +
+        `and the joined source. Pass an explicit .on(...) predicate.`,
+    );
+  }
+  const match = matches[0]!;
+  return binaryOp(
+    "=",
+    columnRef({ tableAlias: match.leftAlias, column: match.leftColumn }),
+    columnRef({ tableAlias: match.rightAlias, column: match.rightColumn }),
+  );
+}
+
+/** True when the right TableRef matches a source TableRef physically. */
+function selfJoinDetected(
+  sourceTables: readonly TableRef[],
+  right: TableRef,
+): boolean {
+  return sourceTables.some(
+    (sourceTable) =>
+      sourceTable.schema === right.schema && sourceTable.name === right.name,
+  );
 }
 
 /** Build the canonical SELECT string from a relation tree. */

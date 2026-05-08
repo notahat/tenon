@@ -6,19 +6,22 @@
 // Limit -> Where -> TableRef. Out of scope: SQL serialisation (see
 // src/sql/serialise.ts), runtime fluent wrappers (src/query/...).
 
+import type { ForeignKey } from "../schema-runtime/foreignKey.js";
 import type { ExpressionNode } from "./expression.js";
 
 /**
  * A reference to a base table. Always has an alias internally; the
  * alias defaults to the table name and is what column references are
- * qualified by. This makes joins drop in cleanly later: a join is just
- * a tree with two TableRefs that may carry distinct aliases.
+ * qualified by. The `foreignKeys` array carries the table's outgoing
+ * FK relationships so the serialiser can infer the ON predicate when
+ * a join was constructed without `.on(...)`.
  */
 export interface TableRef {
   readonly kind: "TableRef";
   readonly schema: string;
   readonly name: string;
   readonly alias: string | null;
+  readonly foreignKeys: readonly ForeignKey[];
 }
 
 /** A SELECT-list projection. */
@@ -70,13 +73,15 @@ export interface Offset {
  * An INNER JOIN. The left side (`source`) is the existing relation —
  * it may already carry where/order/limit/offset/project. The right
  * side is restricted to a TableRef; joining a sub-query is not yet
- * supported.
+ * supported. `on` is null when the user omitted `.on(...)` and the
+ * serialiser is expected to infer the predicate from FK metadata on
+ * the source / right TableRefs.
  */
 export interface InnerJoin {
   readonly kind: "InnerJoin";
   readonly source: RelationNode;
   readonly right: TableRef;
-  readonly on: ExpressionNode;
+  readonly on: ExpressionNode | null;
 }
 
 export type RelationNode =
@@ -93,12 +98,14 @@ export function tableRef(args: {
   readonly schema: string;
   readonly name: string;
   readonly alias?: string;
+  readonly foreignKeys?: readonly ForeignKey[];
 }): TableRef {
   return {
     kind: "TableRef",
     schema: args.schema,
     name: args.name,
     alias: args.alias ?? null,
+    foreignKeys: args.foreignKeys ?? [],
   };
 }
 
@@ -149,11 +156,12 @@ export function orderTerm(
   return { expression, direction };
 }
 
-/** Build an InnerJoin node. Pure. */
+/** Build an InnerJoin node. Pure. Pass `on: null` to defer the ON
+ * predicate to FK inference at serialise time. */
 export function innerJoin(
   source: RelationNode,
   right: TableRef,
-  on: ExpressionNode,
+  on: ExpressionNode | null,
 ): InnerJoin {
   return { kind: "InnerJoin", source, right, on };
 }

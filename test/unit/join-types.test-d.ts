@@ -106,9 +106,14 @@ test("the joined relation projects to a precise row shape", () => {
   }>();
 });
 
-test("JoinBuilder exposes only .on() — chaining .where() before .on() fails", () => {
-  // @ts-expect-error JoinBuilder has no .where method
-  users.innerJoin(posts).where(posts.body.isNotNull());
+test("JoinBuilder is itself a Relation: .where() composes before .on()", () => {
+  // Since v1.10 JoinBuilder extends Relation so the join is runnable
+  // directly (the serialiser fills in ON from FK metadata) and every
+  // read operator works on it. `.where()` returns a plain Relation,
+  // shedding `.on()` from the type — that's intentional.
+  expectTypeOf(
+    users.innerJoin(posts).where(posts.body.isNotNull()),
+  ).not.toBeAny();
 });
 
 test(".on() requires an Expression<boolean>", () => {

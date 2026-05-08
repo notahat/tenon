@@ -128,8 +128,8 @@ function buildTable<
 ): Table<Alias, Columns, FKs> {
   const node =
     alias === name
-      ? tableRef({ schema, name })
-      : tableRef({ schema, name, alias });
+      ? tableRef({ schema, name, foreignKeys })
+      : tableRef({ schema, name, alias, foreignKeys });
   const relation = new Relation<Columns, FKs>(node);
   const accessors: Record<
     string,

@@ -39,6 +39,7 @@ describe("Table.as(alias)", () => {
       schema: "public",
       name: "users",
       alias: "u",
+      foreignKeys: [],
     });
     expect(aliased.id.tableAlias).toBe("u");
     expect(aliased.id.node).toEqual({
@@ -70,6 +71,7 @@ describe("Table.as(alias)", () => {
       schema: "public",
       name: "users",
       alias: "v",
+      foreignKeys: [],
     });
   });
 
