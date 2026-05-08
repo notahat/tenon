@@ -18,7 +18,8 @@ import { Delete } from "../query/Delete.js";
 import { DeletableScope } from "../query/DeletableScope.js";
 import type { Expression } from "../query/Expression.js";
 import { Insert } from "../query/Insert.js";
-import { JoinBuilder, Relation } from "../query/Relation.js";
+import { Relation } from "../query/Relation.js";
+import type { JoinBuilder } from "../query/Relation.js";
 import type { ForeignKeyTuple, InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
 
@@ -193,29 +194,11 @@ function buildTable<
     ): Table<NewAlias, Columns, FKs, Schema, PhysicalName> {
       return buildTable(schema, name, newAlias, columns, foreignKeys);
     },
-    innerJoin<RColumns extends ColumnsShape, RFKs extends ForeignKeyTuple>(
-      right: Relation<RColumns, RFKs> & {
-        readonly _tableName: string;
-        readonly _schema: string;
-        readonly _physicalName: string;
-      },
-    ): JoinBuilder<
-      Columns,
-      FKs,
-      Schema,
-      PhysicalName,
-      RColumns,
-      RFKs,
-      string,
-      string
-    > {
-      if (right.node.kind !== "TableRef") {
-        throw new Error(
-          "innerJoin's right side must be a defined table (got a derived relation).",
-        );
-      }
-      return new JoinBuilder(node, right.node);
-    },
+    // No runtime override for `innerJoin`: it's inherited from
+    // `Relation.prototype` via the `new Relation(node)` above. The
+    // Table type intersects in a more specific signature so the
+    // returned JoinBuilder carries the literal Schema /
+    // PhysicalName generics that drive the FK-inference brand.
     insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null> {
       const columnValues = Object.entries(attrs as Record<string, unknown>).map(
         ([columnName, value]) =>

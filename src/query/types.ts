@@ -122,36 +122,22 @@ export type MergedForeignKeys<
 
 /**
  * True when `LSchema.LName` and `RSchema.RName` resolve to the same
- * literal physical (schema, name) pair. Used by the self-join brand
- * to surface "you joined the same physical table on both sides
- * without an explicit `.on(...)` predicate" at db.run time.
- *
- * When any of the four parameters is the wide `string` type (i.e.
- * the receiver wasn't a Table), the check yields false — the brand
- * only fires when we have literal types on both sides.
+ * literal physical (schema, name) pair. Uses the
+ * `[A, B] extends [B, A]` tuple-equality dance to enforce literal
+ * equality in both directions; widened (`string`) parameters fail
+ * the bidirectional check because `string` is not assignable to a
+ * literal.
  */
 export type IsSamePhysicalTable<
   LSchema extends string,
   LName extends string,
   RSchema extends string,
   RName extends string,
-> = string extends LSchema
-  ? false
-  : string extends LName
-    ? false
-    : string extends RSchema
-      ? false
-      : string extends RName
-        ? false
-        : LSchema extends RSchema
-          ? RSchema extends LSchema
-            ? LName extends RName
-              ? RName extends LName
-                ? true
-                : false
-              : false
-            : false
-          : false;
+> = [LSchema, LName] extends [RSchema, RName]
+  ? [RSchema, RName] extends [LSchema, LName]
+    ? true
+    : false
+  : false;
 
 /**
  * Brand intersected onto a JoinBuilder's merged-columns shape when
@@ -262,37 +248,50 @@ export type MergedColumnsWithFkBrand<
   RFKs extends ForeignKeyTuple,
   RSchema extends string,
   RName extends string,
-> = string extends LSchema
-  ? MergedColumns<L, R>
-  : string extends LName
+> =
+  // `string extends Union` is true iff at least one member of the
+  // union is the wide `string` (a literal would not satisfy it).
+  // One check covers all four "is widened" cases.
+  string extends LSchema | LName | RSchema | RName
     ? MergedColumns<L, R>
-    : string extends RSchema
-      ? MergedColumns<L, R>
-      : string extends RName
-        ? MergedColumns<L, R>
-        : IsSamePhysicalTable<LSchema, LName, RSchema, RName> extends true
-          ? MergedColumns<L, R> & SelfJoinBrand<LSchema, LName>
-          : MatchesBetween<
-                LFKs,
-                LSchema,
-                LName,
-                RFKs,
-                RSchema,
-                RName
-              >["length"] extends 0
-            ? MergedColumns<L, R> &
-                MissingFkBrand<LSchema, LName, RSchema, RName>
-            : MatchesBetween<
-                  LFKs,
-                  LSchema,
-                  LName,
-                  RFKs,
-                  RSchema,
-                  RName
-                >["length"] extends 1
-              ? MergedColumns<L, R>
-              : MergedColumns<L, R> &
-                  AmbiguousFkBrand<LSchema, LName, RSchema, RName>;
+    : IsSamePhysicalTable<LSchema, LName, RSchema, RName> extends true
+      ? MergedColumns<L, R> & SelfJoinBrand<LSchema, LName>
+      : MatchesBetween<
+            LFKs,
+            LSchema,
+            LName,
+            RFKs,
+            RSchema,
+            RName
+          >["length"] extends 0
+        ? MergedColumns<L, R> & MissingFkBrand<LSchema, LName, RSchema, RName>
+        : MatchesBetween<
+              LFKs,
+              LSchema,
+              LName,
+              RFKs,
+              RSchema,
+              RName
+            >["length"] extends 1
+          ? MergedColumns<L, R>
+          : MergedColumns<L, R> &
+              AmbiguousFkBrand<LSchema, LName, RSchema, RName>;
+
+/**
+ * Constraint applied by `Database.run` to a Relation's columns
+ * shape: none of the run-blocking brands may be present. The
+ * duplicate-column brand from `MergedColumns` and the three
+ * inference brands from `MergedColumnsWithFkBrand` each use a
+ * unique field name; the `?: never` per brand makes the constraint
+ * fail when that brand is set, surfacing the brand's
+ * literal-template error message at the call site.
+ */
+export interface UnbrandedColumns {
+  readonly __tenonDuplicateColumns?: never;
+  readonly __tenonInferenceSelfJoin?: never;
+  readonly __tenonInferenceMissing?: never;
+  readonly __tenonInferenceAmbiguous?: never;
+}
 
 /** The set of column names shared between two columns shapes. */
 export type DuplicateColumnNames<L, R> = Extract<keyof L & keyof R, string>;
