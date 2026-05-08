@@ -179,41 +179,17 @@ function inferJoinPredicate(
 ): ExpressionNode {
   const sourceTables = collectTableRefs(source);
   const matches: FkMatch[] = [];
+  let selfJoin = false;
   for (const sourceTable of sourceTables) {
-    const sameTable =
-      sourceTable.schema === right.schema && sourceTable.name === right.name;
-    if (sameTable) continue;
-    for (const fk of sourceTable.foreignKeys) {
-      if (fk.columns.length !== 1) continue;
-      if (
-        fk.referencedSchema === right.schema &&
-        fk.referencedTable === right.name
-      ) {
-        matches.push({
-          leftAlias: aliasOf(sourceTable),
-          leftColumn: fk.columns[0]!,
-          rightAlias: aliasOf(right),
-          rightColumn: fk.referencedColumns[0]!,
-        });
-      }
+    if (samePhysicalTable(sourceTable, right)) {
+      selfJoin = true;
+      continue;
     }
-    for (const fk of right.foreignKeys) {
-      if (fk.columns.length !== 1) continue;
-      if (
-        fk.referencedSchema === sourceTable.schema &&
-        fk.referencedTable === sourceTable.name
-      ) {
-        matches.push({
-          leftAlias: aliasOf(right),
-          leftColumn: fk.columns[0]!,
-          rightAlias: aliasOf(sourceTable),
-          rightColumn: fk.referencedColumns[0]!,
-        });
-      }
-    }
+    matches.push(...fkMatchesPointing(sourceTable, right));
+    matches.push(...fkMatchesPointing(right, sourceTable));
   }
   if (matches.length === 0) {
-    if (selfJoinDetected(sourceTables, right)) {
+    if (selfJoin) {
       throw new Error(
         "Cannot infer ON predicate for a self-join; pass an explicit .on(...) predicate.",
       );
@@ -237,15 +213,26 @@ function inferJoinPredicate(
   );
 }
 
-/** True when the right TableRef matches a source TableRef physically. */
-function selfJoinDetected(
-  sourceTables: readonly TableRef[],
-  right: TableRef,
-): boolean {
-  return sourceTables.some(
-    (sourceTable) =>
-      sourceTable.schema === right.schema && sourceTable.name === right.name,
-  );
+/** Single-column FKs on `from` that reference `to`, as FkMatch tuples. */
+function fkMatchesPointing(from: TableRef, to: TableRef): FkMatch[] {
+  const matches: FkMatch[] = [];
+  for (const fk of from.foreignKeys) {
+    if (fk.columns.length !== 1) continue;
+    if (fk.referencedSchema !== to.schema) continue;
+    if (fk.referencedTable !== to.name) continue;
+    matches.push({
+      leftAlias: aliasOf(from),
+      leftColumn: fk.columns[0]!,
+      rightAlias: aliasOf(to),
+      rightColumn: fk.referencedColumns[0]!,
+    });
+  }
+  return matches;
+}
+
+/** True when two TableRefs target the same physical (schema, name). */
+function samePhysicalTable(left: TableRef, right: TableRef): boolean {
+  return left.schema === right.schema && left.name === right.name;
 }
 
 /** Build the canonical SELECT string from a relation tree. */
