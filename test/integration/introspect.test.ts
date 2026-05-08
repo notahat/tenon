@@ -199,6 +199,93 @@ describe("generateSchema", () => {
     });
   });
 
+  it("emits single-column FKs into the generated schema file", async () => {
+    await withTestSchema("tenon_introspect_fk_emit", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."users" (id integer PRIMARY KEY)`,
+        );
+        await client.query(
+          `CREATE TABLE "${schema}"."posts" (
+             id integer PRIMARY KEY,
+             author_id integer NOT NULL REFERENCES "${schema}"."users"(id)
+           )`,
+        );
+      } finally {
+        client.release();
+      }
+
+      const tempDir = await mkdtemp(join(tmpdir(), "tenon-test-"));
+      const outputPath = join(tempDir, "schema.ts");
+      try {
+        await generateSchema({
+          databaseUrl: DATABASE_URL,
+          schemas: [schema],
+          outputPath,
+        });
+        const file = await readFile(outputPath, "utf8");
+        expect(file).toContain(`}, [
+  {
+    name: "posts_author_id_fkey",
+    columns: ["author_id"],
+    referencedSchema: "${schema}",
+    referencedTable: "users",
+    referencedColumns: ["id"],
+  },
+]);`);
+      } finally {
+        await rm(tempDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  it("emits a skip comment for composite FKs in the generated file", async () => {
+    await withTestSchema(
+      "tenon_introspect_fk_emit_composite",
+      async (schema) => {
+        const client = await sharedPool.connect();
+        try {
+          await client.query(
+            `CREATE TABLE "${schema}"."orders" (
+               id integer NOT NULL,
+               tenant integer NOT NULL,
+               PRIMARY KEY (tenant, id)
+             )`,
+          );
+          await client.query(
+            `CREATE TABLE "${schema}"."order_lines" (
+               order_id integer NOT NULL,
+               tenant_id integer NOT NULL,
+               FOREIGN KEY (tenant_id, order_id)
+                 REFERENCES "${schema}"."orders" (tenant, id)
+             )`,
+          );
+        } finally {
+          client.release();
+        }
+
+        const tempDir = await mkdtemp(join(tmpdir(), "tenon-test-"));
+        const outputPath = join(tempDir, "schema.ts");
+        try {
+          await generateSchema({
+            databaseUrl: DATABASE_URL,
+            schemas: [schema],
+            outputPath,
+          });
+          const file = await readFile(outputPath, "utf8");
+          expect(file).toContain("// Skipped composite foreign key");
+          expect(file).toContain(
+            "// composite FKs are not yet surfaced in tenon's type-level inference.",
+          );
+          expect(file).not.toMatch(/columns: \["tenant_id", "order_id"\]/);
+        } finally {
+          await rm(tempDir, { recursive: true, force: true });
+        }
+      },
+    );
+  });
+
   it("reads cross-schema foreign keys", async () => {
     await withTestSchema("tenon_introspect_fk_xschema_a", async (parent) => {
       await withTestSchema("tenon_introspect_fk_xschema_b", async (child) => {
