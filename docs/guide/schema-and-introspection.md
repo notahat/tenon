@@ -127,3 +127,11 @@ overwritten on the next regeneration. If you need behaviour the
 generator doesn't support (custom column types, projections,
 view-as-table treatment), open an issue or work around it in your
 own code rather than editing the output.
+
+## See also
+
+- [`tenon-generate`](../reference/tenon-generate.md) — the CLI
+  flags, exit codes, and output format.
+- [`schema-runtime`](../reference/schema-runtime.md) — the
+  surface the generated file imports (`defineTable`, `columnType`).
+- [`Table`](../reference/table.md) — what `defineTable` returns.

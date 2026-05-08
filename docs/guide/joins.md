@@ -112,3 +112,11 @@ care about.
 
 See the [iteration plans](../plans/) for the design intent on
 each.
+
+## See also
+
+- [`Relation.innerJoin`](../reference/relation.md#innerjoinrighttable)
+  and [`JoinBuilder`](../reference/join-builder.md) for the
+  reference signatures.
+- [`MergedColumns`](../reference/types.md#mergedcolumns)
+  for the duplicate-column brand and how to clear it.

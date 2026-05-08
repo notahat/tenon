@@ -102,3 +102,11 @@ This is mostly relevant once tenon supports `DELETE ... USING`
 (deferred) — for plain DELETE the alias rarely matters in
 practice, but it's preserved on emit so the predicates' qualified
 column references resolve correctly.
+
+## See also
+
+- [`Delete`, `DeletableScope`](../reference/delete.md) — the
+  fluent classes and `.returning(...)` signature.
+- [`Table.where`](../reference/table.md#wherepredicate),
+  [`Table.delete`](../reference/table.md#delete),
+  [`Table.deleteAll`](../reference/table.md#deleteall).

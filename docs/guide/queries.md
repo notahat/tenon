@@ -109,3 +109,12 @@ The shape of the returned rows is inferred from the relation's
 column shape. See [running queries](running-queries.md) for the
 return-type rules and [type mapping](type-mapping.md) for how
 Postgres types map to TypeScript.
+
+## See also
+
+- [`Relation`](../reference/relation.md) — every operator
+  enumerated, with signatures.
+- [`ProjectableItem`](../reference/types.md#projectableitem) and
+  [`ProjectedShape`](../reference/types.md#projectedshape)
+  — what `project(...)` accepts and how the result type is
+  computed.

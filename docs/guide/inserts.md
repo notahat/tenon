@@ -91,3 +91,12 @@ doesn't currently expose `INSERT ... ON CONFLICT DO NOTHING`, so
 in practice an unsuccessful insert is one that throws (uniqueness
 violation, FK violation, ...). Errors propagate from `pg`
 unchanged.
+
+## See also
+
+- [`Insert`](../reference/insert.md) — the fluent class and
+  `.returning(...)` signature.
+- [`Table.insert`](../reference/table.md#insertattrs).
+- [`InsertableAttrs`](../reference/types.md#insertableattrs)
+  — the type machinery that decides required / optional /
+  forbidden keys.

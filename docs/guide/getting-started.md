@@ -79,3 +79,8 @@ it before the query is built.
 - [Type mapping](type-mapping.md) for the cases where Postgres
   types don't have a clean JavaScript equivalent (`int8`,
   `numeric`, `timestamp` without time zone).
+
+For per-symbol details, jump to the
+[reference](../reference/README.md) — most relevant for this
+page are [`Database`](../reference/database.md) and
+[`tenon-generate`](../reference/tenon-generate.md).

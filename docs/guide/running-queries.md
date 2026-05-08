@@ -95,3 +95,10 @@ synchronously at construction or serialisation time.
 - **Custom type parsers.** tenon trusts `pg`'s default parsers.
   If you need custom parsing, attach a parser to the pool itself
   via `pg-types`.
+
+## See also
+
+- [`Database`](../reference/database.md) — the full overload
+  list with signatures.
+- [`RowOf`](../reference/types.md#rowof) — the per-row
+  type produced by `.run`.

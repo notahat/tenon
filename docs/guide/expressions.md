@@ -111,3 +111,11 @@ users.order(users.active.desc(), users.email.asc());
 NULLS FIRST / NULLS LAST is not yet supported; the default
 Postgres ordering applies (`asc` puts NULLs last; `desc` puts
 NULLs first).
+
+## See also
+
+- [`Column`, `AliasedColumn`, `Expression`](../reference/column-and-expressions.md)
+  — every comparator and combinator with signatures.
+- [`Ordering`](../reference/ordering.md).
+- [`ComparableTo`](../reference/types.md#comparableto) for the
+  right-hand-side rule on every comparator.

@@ -116,3 +116,10 @@ This is usually fine: enums are textual on the wire, and a
 not the generator) gives you most of the type safety. A
 configurable mapping mechanism is on the roadmap; until then,
 edit your application code to narrow at the boundary.
+
+## See also
+
+- [`tenon-generate`](../reference/tenon-generate.md) — the CLI
+  that emits the column types.
+- [`schema-runtime`](../reference/schema-runtime.md) for
+  `columnType` and `ColumnType`.
