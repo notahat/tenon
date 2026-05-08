@@ -1,0 +1,234 @@
+# Types and phantoms
+
+The type-level machinery: what each type does, where it lives,
+and a worked example showing a column threading through the
+pipeline.
+
+## Where the types live
+
+Two thick files plus a sprinkle:
+
+- **`src/schema-runtime/columnType.ts`** — `ColumnType`,
+  `ColumnsShape`, the `columnType<TS, SQL>(...)` overload set.
+- **`src/query/types.ts`** — `RowOf`, `MergedColumns`,
+  `InsertableAttrs`, `ProjectedShape`, `ComparableTo`,
+  `DuplicateColumnNames`, `Prettify`, `ItemOutputName`,
+  `ItemColumnType`.
+- **Per-class phantoms** — declared inline in `Relation`,
+  `Insert`, `Delete`, `DeletableScope`, `Column`,
+  `AliasedColumn`, `Expression`, `JoinBuilder`. See
+  [fluent-layer.md](fluent-layer.md).
+
+## `ColumnType<TsType, SqlTag, Nullable, HasDefault, IsGenerated>`
+
+The carrier for a single column's static and dynamic shape. Five
+generics:
+
+- `TsType` — TypeScript type produced when reading this column
+  (e.g. `number`, `string`, `Date`).
+- `SqlTag` — Postgres `typname` (e.g. `"int4"`, `"text"`,
+  `"timestamptz"`).
+- `Nullable` — `true` if values may be NULL.
+- `HasDefault` — `true` if the column has a `DEFAULT` clause or
+  is an identity column.
+- `IsGenerated` — `true` for `GENERATED ... STORED` columns.
+
+`TsType` and `SqlTag` are **phantom** (declared as
+`readonly _tsType: TsType` / `readonly _sqlTag: SqlTag`, never
+assigned). The three boolean flags exist both in the type and at
+runtime — runtime so the introspector can write them into the
+generated file, type so `RowOf` and `InsertableAttrs` can read
+them.
+
+## `columnType` and the eight overloads
+
+`columnType` is overloaded once per `(nullable, hasDefault,
+isGenerated)` triple — eight overloads. The reason: a single
+generic signature with `Nullable extends boolean` does not
+preserve literals when `<TsType, SqlTag>` are passed explicitly:
+
+```ts
+// With one generic signature, this would resolve to
+//   ColumnType<number, "int4", boolean, boolean, boolean>
+// — losing the literal `true`/`false` flags.
+
+columnType<number, "int4">({
+  nullable: false,
+  hasDefault: true,
+  isGenerated: false,
+});
+```
+
+The overloads force literal-preservation by matching object
+literals exactly. Verbose but the call-site narrowing is
+essential — `RowOf` needs `Nullable extends true`, and
+`InsertableAttrs` needs `HasDefault extends true` /
+`IsGenerated extends true`.
+
+## `RowOf<Columns>`
+
+```ts
+type RowOf<Columns extends ColumnsShape> = Prettify<{
+  -readonly [Name in keyof Columns]: Columns[Name]["nullable"] extends true
+    ? Columns[Name]["_tsType"] | null
+    : Columns[Name]["_tsType"];
+}>;
+```
+
+The TS row type produced when executing a `Relation<Columns>`.
+Nullable columns widen by `| null`; the `readonly` modifier is
+stripped so the row matches the plain objects `pg` returns.
+
+`Prettify<T>` is a structural no-op (`{ [K in keyof T]: T[K] } &
+{}`) that forces the editor to display the resolved shape rather
+than the alias chain. Without it, hovering over a row variable
+shows `RowOf<typeof users._columns>` instead of `{ id: number;
+email: string; ... }`.
+
+## `MergedColumns<L, R>` and the duplicate-column brand
+
+```ts
+type MergedColumns<L extends ColumnsShape, R extends ColumnsShape> =
+  DuplicateColumnNames<L, R> extends never
+    ? Readonly<L & R>
+    : Readonly<L & R> & {
+        readonly __tenonDuplicateColumns: `tenon: joined relation has duplicate columns: ${DuplicateColumnNames<L, R>}; project(...) before db.run, or as(...) one side before joining`;
+      };
+```
+
+When two joined tables share column names, the merged type
+intersects in a brand: an unforgeable `__tenonDuplicateColumns`
+field whose value is a literal-template **error message**.
+
+The brand survives `.where`, `.order`, `.limit` (which all
+preserve the columns shape), but is rejected at `Database.run`:
+the `Relation` overload requires
+`{ readonly __tenonDuplicateColumns?: never }`, which the
+brand violates.
+
+`.project(...)` builds a fresh `Relation` whose columns shape is
+`ProjectedShape<Items>` — computed off the projected items, no
+join-merge involved. The brand doesn't propagate, so the
+projected relation runs cleanly.
+
+The literal-template error message is what TypeScript surfaces
+at the run site. It names the offending columns inline so the
+user doesn't need to chase the diagnostic.
+
+## `InsertableAttrs<Columns>`
+
+```ts
+type RequiredInsertKeys<Columns> = {
+  [Name in keyof Columns]: Columns[Name]["isGenerated"] extends true
+    ? never
+    : Columns[Name]["nullable"] extends true
+      ? never
+      : Columns[Name]["hasDefault"] extends true
+        ? never
+        : Name;
+}[keyof Columns];
+
+type OptionalInsertKeys<Columns> = {
+  [Name in keyof Columns]: Columns[Name]["isGenerated"] extends true
+    ? never
+    : Columns[Name]["nullable"] extends true
+      ? Name
+      : Columns[Name]["hasDefault"] extends true
+        ? Name
+        : never;
+}[keyof Columns];
+
+type InsertableAttrs<Columns> = Prettify<
+  { [Name in RequiredInsertKeys<Columns>]: Columns[Name]["_tsType"] } & {
+    [Name in OptionalInsertKeys<Columns>]?: Columns[Name]["nullable"] extends true
+      ? Columns[Name]["_tsType"] | null
+      : Columns[Name]["_tsType"];
+  }
+>;
+```
+
+Three buckets, computed by reading the per-column flags:
+
+- **Required** — not generated, not nullable, no default.
+- **Optional** — not generated, AND (nullable OR has default).
+  Nullable optional columns also accept `null`.
+- **Forbidden** — generated. Filtered to `never` in both maps,
+  so the field doesn't appear in the resulting type. Supplying
+  one is a "no such property" error.
+
+## `ProjectedShape<Items>`
+
+```ts
+type ItemOutputName<Item> =
+  Item extends AliasedColumn<infer Name, ...> ? Name
+  : Item extends Column<string, infer Name, ...> ? Name
+  : never;
+
+type ItemColumnType<Item> =
+  Item extends AliasedColumn<string, infer Type> ? Type
+  : Item extends Column<string, string, infer Type> ? Type
+  : never;
+
+type ProjectedShape<Items extends readonly ProjectableItem[]> = {
+  readonly [Item in Items[number] as ItemOutputName<Item>]: ItemColumnType<Item>;
+};
+```
+
+Build a columns shape from a tuple of projectable items. Each
+item becomes one entry keyed by its output name and carrying its
+column type — so the projected relation stays composable
+(`projected.where(...)` still type-checks, the row type infers
+correctly, and so on).
+
+`ItemOutputName` reads the output name (alias for
+`AliasedColumn`, column name for bare `Column`); `ItemColumnType`
+reads the carried `ColumnType`.
+
+## Worked example
+
+A column threading from `tenon-generate` to a `db.run` row type:
+
+1. **Catalog row.** Postgres reports `users.email` as
+   `typname = "text", attnotnull = true, atthasdef = false,
+attgenerated = ""`.
+2. **Generated file.** `tenon-generate` writes:
+
+   ```ts
+   email: columnType<string, "text">({
+     nullable: false,
+     hasDefault: false,
+     isGenerated: false,
+   }),
+   ```
+
+   The triple `(false, false, false)` selects the first
+   overload, returning
+   `ColumnType<string, "text", false, false, false>`.
+
+3. **Table value.** `defineTable("public", "users", { email,
+... })` returns a `Table<"users", Columns>`. The `email`
+   property is a `Column<"users", "email", ColumnType<string,
+"text", false, false, false>>`.
+
+4. **Comparator.** `users.email.eq("pete@notahat.com")` produces
+   `Expression<boolean>`. `ComparableTo<Type>` accepts a raw
+   `string` (the `_tsType` of the column type), so the literal
+   passes. `users.email.eq(42)` is rejected — `42` doesn't match
+   `Type["_tsType"]`.
+
+5. **Relation.** `users.where(...)` is a `Relation<Columns>`.
+   The `Columns` generic preserves the email column type.
+
+6. **Row type.** `RowOf<Columns>` reads
+   `Columns["email"]["nullable"]` (`false`) and
+   `Columns["email"]["_tsType"]` (`string`), producing
+   `email: string` (no `| null`). After `Prettify`, the editor
+   shows `{ ...; email: string; ... }` directly.
+
+7. **Run.** `db.run(users.where(users.email.eq(...)))` resolves
+   to `Array<{ ...; email: string; ... }>`. The inner overload
+   on `.run` requires no duplicate-column brand; the columns
+   shape doesn't carry one (no join), so it passes.
+
+Every step is type-level only. No bytes of the column metadata
+flow at runtime past the schema-runtime flags.
