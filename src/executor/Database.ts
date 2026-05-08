@@ -47,52 +47,52 @@ export class Database {
    * `Table.as(...)` before joining.
    */
   run<Columns extends ColumnsShape, Returning extends ColumnsShape>(
-    remove: Delete<Columns, Returning>,
+    statement: Delete<Columns, Returning>,
     client?: PoolClient,
   ): Promise<RowOf<Returning>[]>;
   run<Columns extends ColumnsShape>(
-    remove: Delete<Columns, null>,
+    statement: Delete<Columns, null>,
     client?: PoolClient,
   ): Promise<{ readonly rowCount: number }>;
   run<Columns extends ColumnsShape, Returning extends ColumnsShape>(
-    insert: Insert<Columns, Returning>,
+    statement: Insert<Columns, Returning>,
     client?: PoolClient,
   ): Promise<RowOf<Returning>[]>;
   run<Columns extends ColumnsShape>(
-    insert: Insert<Columns, null>,
+    statement: Insert<Columns, null>,
     client?: PoolClient,
   ): Promise<{ readonly rowCount: number }>;
   run<Columns extends ColumnsShape, FKs extends ForeignKeyTuple = readonly []>(
-    query: Relation<Columns, FKs> & {
+    statement: Relation<Columns, FKs> & {
       readonly _columns: UnbrandedColumns;
     },
     client?: PoolClient,
   ): Promise<RowOf<Columns>[]>;
   async run(
-    query:
+    statement:
       | Relation<ColumnsShape, ForeignKeyTuple>
       | Insert<ColumnsShape, ColumnsShape | null>
       | Delete<ColumnsShape, ColumnsShape | null>,
     client?: PoolClient,
   ): Promise<unknown> {
     const runner: QueryRunner = client ?? this.pool;
-    if (query instanceof Insert) {
-      const compiled = insertToSql(query.node);
+    if (statement instanceof Insert) {
+      const compiled = insertToSql(statement.node);
       const result = await runner.query(compiled.text, [...compiled.params]);
-      if (query.node.returning === null) {
+      if (statement.node.returning === null) {
         return { rowCount: result.rowCount ?? 0 };
       }
       return result.rows;
     }
-    if (query instanceof Delete) {
-      const compiled = deleteToSql(query.node);
+    if (statement instanceof Delete) {
+      const compiled = deleteToSql(statement.node);
       const result = await runner.query(compiled.text, [...compiled.params]);
-      if (query.node.returning === null) {
+      if (statement.node.returning === null) {
         return { rowCount: result.rowCount ?? 0 };
       }
       return result.rows;
     }
-    const compiled = relationToSql(query.node);
+    const compiled = relationToSql(statement.node);
     const result = await runner.query(compiled.text, [...compiled.params]);
     return result.rows;
   }
