@@ -77,6 +77,7 @@ export type Table<
     _physicalName: PhysicalName;
     _foreignKeys: FKs;
     _primaryKey: PK;
+    _columnNames: readonly (keyof Columns & string)[];
   }> & {
     readonly [Name in keyof Columns & string]: Column<
       Alias,
@@ -233,6 +234,10 @@ function buildTable<
     _physicalName: name,
     _foreignKeys: foreignKeys,
     _primaryKey: primaryKey,
+    // Runtime list of column names. The `_columns` phantom is
+    // type-level only; defineSchema needs the names at runtime to
+    // detect accessor / column collisions.
+    _columnNames: Object.keys(columns),
     as<NewAlias extends string>(
       newAlias: NewAlias,
     ): Table<NewAlias, Columns, FKs, PK, Schema, PhysicalName> {

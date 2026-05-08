@@ -3,6 +3,8 @@
 
 export { columnType } from "./columnType.js";
 export type { ColumnType, ColumnsShape } from "./columnType.js";
+export { defineSchema } from "./defineSchema.js";
+export type { WiredSchema, WiredTable } from "./defineSchema.js";
 export { defineTable } from "./defineTable.js";
 export type { Table } from "./defineTable.js";
 export type { ForeignKey } from "./foreignKey.js";

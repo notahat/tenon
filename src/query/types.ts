@@ -7,9 +7,11 @@
 
 import type { ColumnType, ColumnsShape } from "../schema-runtime/columnType.js";
 import type { ForeignKey } from "../schema-runtime/foreignKey.js";
+import type { PrimaryKey } from "../schema-runtime/primaryKey.js";
 import type { AliasedColumn } from "./AliasedColumn.js";
 import type { Column } from "./Column.js";
 import type { Expression } from "./Expression.js";
+import type { Relation } from "./Relation.js";
 
 /**
  * Values acceptable on the right-hand side of an ordering or equality
@@ -296,19 +298,37 @@ export type MergedColumnsWithFkBrand<
   FkBrand<LFKs, LSchema, LName, RFKs, RSchema, RName>;
 
 /**
+ * Brand intersected onto a has-many accessor's value type when more
+ * than one foreign key on the referencing table points at the parent.
+ * The literal-template message names the offending pair so the
+ * `db.run` failure tells the user exactly which join to write
+ * explicitly.
+ */
+export type AmbiguousHasManyBrand<
+  ParentSchema extends string,
+  ParentName extends string,
+  ChildSchema extends string,
+  ChildName extends string,
+> = {
+  readonly __tenonAmbiguousHasMany: `tenon: cannot infer has-many accessor; ambiguous foreign keys from ${ChildSchema}.${ChildName} to ${ParentSchema}.${ParentName}; call .innerJoin(...).on(...) explicitly`;
+};
+
+/**
  * Constraint applied by `Database.run` to a Relation's columns
  * shape: none of the run-blocking brands may be present. The
- * duplicate-column brand from `MergedColumns` and the three
- * inference brands from `MergedColumnsWithFkBrand` each use a
- * unique field name; the `?: never` per brand makes the constraint
- * fail when that brand is set, surfacing the brand's
- * literal-template error message at the call site.
+ * duplicate-column brand from `MergedColumns`, the three inference
+ * brands from `MergedColumnsWithFkBrand`, and the ambiguous-has-many
+ * brand from FK accessors each use a unique field name; the `?: never`
+ * per brand makes the constraint fail when that brand is set,
+ * surfacing the brand's literal-template error message at the call
+ * site.
  */
 export interface UnbrandedColumns {
   readonly __tenonDuplicateColumns?: never;
   readonly __tenonInferenceSelfJoin?: never;
   readonly __tenonInferenceMissing?: never;
   readonly __tenonInferenceAmbiguous?: never;
+  readonly __tenonAmbiguousHasMany?: never;
 }
 
 /** The set of column names shared between two columns shapes. */
@@ -376,3 +396,96 @@ export type InsertableAttrs<Columns extends ColumnsShape> = Prettify<
       : Columns[Name]["_tsType"];
   }
 >;
+
+/**
+ * The structural shape `defineSchema` reads off each Table value when
+ * computing the type-level association map. The schema-runtime `Table`
+ * type is wider than this — it carries column accessors, relation
+ * methods, and so on — but only these phantom fields drive accessor
+ * inference, so isolating them keeps the association-map machinery
+ * decoupled from the rest of `Table`.
+ *
+ * `_columnNames` is the only field with a real runtime value; the
+ * others are phantoms. defineSchema reads it to detect accessor /
+ * column-name collisions.
+ */
+export interface TableShape {
+  readonly _columns: ColumnsShape;
+  readonly _columnNames: readonly string[];
+  readonly _foreignKeys: ForeignKeyTuple;
+  readonly _primaryKey: PrimaryKey;
+  readonly _schema: string;
+  readonly _physicalName: string;
+}
+
+/**
+ * Map from accessor name to value type for has-many associations on
+ * the parent table `T`, given the full schema bag `S`. Iterates every
+ * other table in `S`, counts the single-column FKs whose referenced
+ * (schema, name) matches `T`'s identity, and adds an accessor named
+ * after the child's physical name. Three skip conditions:
+ *   1. Self-reference: `T` itself is not added (would collide with the
+ *      parent's own physical name accessor and the FK target is
+ *      ambiguous).
+ *   2. No matching FKs: the child has no FK pointing at `T`.
+ *   3. Column shadow: the accessor name collides with a column name
+ *      already on `T`. (The runtime mirror also skips with a
+ *      generated-file comment; see `defineSchema`.)
+ *
+ * When more than one FK on a single child points at `T`, the value
+ * type is intersected with `AmbiguousHasManyBrand` so the accessor is
+ * still constructible but `db.run` rejects it with a guiding message.
+ */
+export type HasManyAccessors<
+  T extends TableShape,
+  S extends Record<string, TableShape>,
+> = {
+  [K in keyof S as HasManyAccessorKey<T, S[K]>]: HasManyAccessorValue<
+    T,
+    S[K]
+  >;
+};
+
+/**
+ * Accessor-name picker for a single child table. Returns the child's
+ * physical name when the association applies, or `never` to skip.
+ */
+type HasManyAccessorKey<T extends TableShape, U extends TableShape> =
+  // Self-reference check: same physical (schema, name) as the parent.
+  [U["_schema"], U["_physicalName"]] extends [T["_schema"], T["_physicalName"]]
+    ? never
+    : FkMatches<
+          U["_foreignKeys"],
+          T["_schema"],
+          T["_physicalName"]
+        >["length"] extends 0
+      ? never
+      : U["_physicalName"] extends keyof T["_columns"]
+        ? never
+        : U["_physicalName"];
+
+/**
+ * Value type for a has-many accessor: a `Relation` over the child's
+ * columns. When more than one FK from the child points at the parent,
+ * `AmbiguousHasManyBrand` is intersected into the columns shape
+ * (rather than the Relation itself) so `UnbrandedColumns` catches it
+ * at `db.run` time, the same way duplicate-column and self-join
+ * brands surface.
+ */
+type HasManyAccessorValue<T extends TableShape, U extends TableShape> =
+  FkMatches<
+    U["_foreignKeys"],
+    T["_schema"],
+    T["_physicalName"]
+  >["length"] extends 1
+    ? Relation<U["_columns"], U["_foreignKeys"]>
+    : Relation<
+        U["_columns"] &
+          AmbiguousHasManyBrand<
+            T["_schema"],
+            T["_physicalName"],
+            U["_schema"],
+            U["_physicalName"]
+          >,
+        U["_foreignKeys"]
+      >;

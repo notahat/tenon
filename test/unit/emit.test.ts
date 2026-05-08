@@ -28,27 +28,25 @@ function column(
 }
 
 describe("emitSchemaFile", () => {
-  it("emits a header that imports defineTable and columnType", () => {
+  it("emits a header that imports columnType, defineSchema, and defineTable", () => {
     const output = emitSchemaFile([
       column("public", "users", "id", "int4", false),
     ]);
     expect(output).toContain(
-      `import { columnType, defineTable } from "@notahat/tenon/schema-runtime";`,
+      `import {\n  columnType,\n  defineSchema,\n  defineTable,\n} from "@notahat/tenon/schema-runtime";`,
     );
   });
 
-  it("emits one defineTable block per (schema, table) pair", () => {
+  it("wraps every table in a single defineSchema call and destructures wired exports", () => {
     const output = emitSchemaFile([
       column("public", "users", "id", "int4", false),
       column("public", "users", "email", "text", false),
       column("public", "posts", "id", "int4", false),
     ]);
-    expect(output).toContain(
-      `export const users = defineTable("public", "users", {`,
-    );
-    expect(output).toContain(
-      `export const posts = defineTable("public", "posts", {`,
-    );
+    expect(output).toContain(`export const schema = defineSchema({`);
+    expect(output).toContain(`users: defineTable("public", "users", {`);
+    expect(output).toContain(`posts: defineTable("public", "posts", {`);
+    expect(output).toContain(`export const { users, posts } = schema;`);
   });
 
   it("renders columns with their TS type, SQL tag, and per-column flags", () => {
@@ -90,9 +88,8 @@ describe("emitSchemaFile", () => {
     const output = emitSchemaFile([
       column("public", "weird-name", "id", "int4", false),
     ]);
-    expect(output).toContain(
-      `export const weird_name = defineTable("public", "weird-name", {`,
-    );
+    expect(output).toContain(`weird_name: defineTable("public", "weird-name", {`);
+    expect(output).toContain(`export const { weird_name } = schema;`);
   });
 
   it("escapes special characters in identifiers passed as string literals", () => {
@@ -108,7 +105,7 @@ describe("emitSchemaFile", () => {
       [],
     );
     expect(output).not.toContain("], [");
-    expect(output).toMatch(/defineTable\("public", "users", \{[\s\S]*?\}\);/);
+    expect(output).toMatch(/users: defineTable\("public", "users", \{[\s\S]*?\}\)/);
   });
 
   it("renders a fourth-argument FK array for single-column FKs", () => {
@@ -129,14 +126,14 @@ describe("emitSchemaFile", () => {
       [fk],
     );
     expect(output).toContain(`}, [
-  {
-    name: "posts_author_id_fkey",
-    columns: ["author_id"],
-    referencedSchema: "public",
-    referencedTable: "users",
-    referencedColumns: ["id"],
-  },
-]);`);
+    {
+      name: "posts_author_id_fkey",
+      columns: ["author_id"],
+      referencedSchema: "public",
+      referencedTable: "users",
+      referencedColumns: ["id"],
+    },
+  ]),`);
   });
 
   it("attaches FKs to the correct table when several tables are emitted", () => {
@@ -158,12 +155,10 @@ describe("emitSchemaFile", () => {
       [usersToOrgs],
     );
     const usersBlock = output.slice(
-      output.indexOf("export const users"),
-      output.indexOf("export const organizations"),
+      output.indexOf("users: defineTable"),
+      output.indexOf("organizations: defineTable"),
     );
-    const orgsBlock = output.slice(
-      output.indexOf("export const organizations"),
-    );
+    const orgsBlock = output.slice(output.indexOf("organizations: defineTable"));
     expect(usersBlock).toContain(`name: "users_org_id_fkey"`);
     expect(orgsBlock).not.toContain(`users_org_id_fkey`);
   });
@@ -179,7 +174,7 @@ describe("emitSchemaFile", () => {
       [],
       [pk],
     );
-    expect(output).toContain(`}, [], { columns: ["id"] });`);
+    expect(output).toContain(`}, [], { columns: ["id"] }),`);
   });
 
   it("renders both FKs and a primary key together", () => {
@@ -205,7 +200,7 @@ describe("emitSchemaFile", () => {
       [fk],
       [pk],
     );
-    expect(output).toContain(`], { columns: ["id"] });`);
+    expect(output).toContain(`], { columns: ["id"] }),`);
   });
 
   it("emits composite primary keys faithfully", () => {
@@ -249,10 +244,10 @@ describe("emitSchemaFile", () => {
       [usersPk],
     );
     const usersBlock = output.slice(
-      output.indexOf("export const users"),
-      output.indexOf("export const events"),
+      output.indexOf("users: defineTable"),
+      output.indexOf("events: defineTable"),
     );
-    const eventsBlock = output.slice(output.indexOf("export const events"));
+    const eventsBlock = output.slice(output.indexOf("events: defineTable"));
     expect(usersBlock).toContain(`{ columns: ["id"] }`);
     expect(eventsBlock).not.toContain(`columns:`);
   });
