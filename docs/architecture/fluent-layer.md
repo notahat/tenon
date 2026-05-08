@@ -2,8 +2,9 @@
 
 The user-facing classes that build AST nodes:
 `Relation`, `Insert`, `Delete`, `DeletableScope`, `SingleRow`,
-`SingleRowOrThrow`, plus the expression-side `Column`,
-`AliasedColumn`, `Expression`, `Ordering`, and `JoinBuilder`.
+`DeletableSingleRow`, `SingleRowOrThrow`, plus the
+expression-side `Column`, `AliasedColumn`, `Expression`,
+`Ordering`, and `JoinBuilder`.
 
 All in `src/query/`. Each class wraps an AST node, exposes
 methods that produce more AST, and carries phantom types that
@@ -198,7 +199,7 @@ in this iteration.
 `TableRef` and pulls out the predicate list. The walk is local to
 the scope; nothing else in the codebase needs it.
 
-### `SingleRow<Columns>` and `SingleRowOrThrow<Columns>`
+### `SingleRow<Columns>`, `DeletableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
 
 Wrap a `RelationNode` that the type system promises will resolve
 to 0 or 1 rows. Built by `Table.find(id)`, which is conditionally
@@ -207,18 +208,42 @@ available on tables with a single-column primary key
 type-level `Record<never, never>`). The underlying AST is a
 `Where(TableRef, pk = $1)` wrapped in `Limit(1)`.
 
+`Table.find(id)` actually returns a `DeletableSingleRow` — a
+`SingleRow` subclass that adds a `.delete()` method. The subclass
+captures the target `TableRef` and the primary-key predicate
+explicitly, so `.delete()` can build a `DeleteNode` without
+walking the wrapped node (the wrapped node has a `Limit` between
+the `Where` and the `TableRef`, which the `DeletableScope`
+predicate-walker doesn't handle). The wrapped `LIMIT 1` is
+intentionally dropped at DELETE time: Postgres has no
+`DELETE ... LIMIT`, and the primary-key predicate already
+restricts the statement to ≤1 row.
+
+This split mirrors `Relation` / `DeletableScope`: read-side and
+mutation-side capabilities live on different classes so the type
+system can withhold `.delete()` from values where it would be
+unsound. Belongs-to accessors wired by `defineSchema` (next
+section) construct plain `SingleRow`, not `DeletableSingleRow`,
+because their wrapped node is an inner-join relation rather than
+a flat `WHERE pk = ?` — turning that into a `DELETE` would need
+`DELETE USING` or a CTE, which is out of scope.
+
 `SingleRow.orThrow()` returns a `SingleRowOrThrow` over the same
 underlying node. The two classes differ only in how
 `Database.run` interprets the result: `SingleRow` resolves to
 `RowOf<C> | null`, `SingleRowOrThrow` to `RowOf<C>` (rejecting
-with `RowNotFoundError` when the SQL returns zero rows). Both
-are exported from `src/query/SingleRow.ts`.
+with `RowNotFoundError` when the SQL returns zero rows).
+`DeletableSingleRow` is a `SingleRow` subclass, so it matches the
+same `Database.run` overload — no separate dispatch branch. All
+three classes are exported from `src/query/SingleRow.ts`.
 
-Neither class has operator methods of its own. The association
-accessors (`posts.find(1).comments`, `comments.find(5).post`)
-are merged onto the SingleRow at runtime by `defineSchema` — see
-the next section. Bare SingleRows (built without going through
-defineSchema) carry no accessors but are still runnable.
+Neither `SingleRow` nor `SingleRowOrThrow` has operator methods
+of its own; only `DeletableSingleRow` adds `.delete()`. The
+association accessors (`posts.find(1).comments`,
+`comments.find(5).post`) are merged onto the SingleRow at runtime
+by `defineSchema` — see the next section. Bare SingleRows (built
+without going through defineSchema) carry no accessors but are
+still runnable.
 
 ## Schema-wide wiring: `defineSchema`
 

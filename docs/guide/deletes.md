@@ -86,6 +86,24 @@ path that produces a no-WHERE `DELETE` without throwing. Reach
 for it sparingly — almost every real delete should be narrowed
 through `.where(...)`.
 
+## `find(id).delete()` for primary-key deletes
+
+When the row you want to delete is one you'd normally fetch via
+[`Table.find(id)`](relationships.md), you can delete it the same
+way:
+
+```ts
+await db.run(users.find(1).delete());
+// Emits: DELETE FROM "public"."users" WHERE ("users"."id" = $1)
+```
+
+`db.run` resolves to `{ rowCount: 0 | 1 }` — 0 when the row
+didn't exist, 1 when it did. Chain `.returning(...)` to recover
+columns from the deleted row, exactly as on the
+`where(...).delete()` path. See the
+[relationships guide](relationships.md#deleting-by-primary-key)
+for the full story.
+
 ## Aliases and `DELETE FROM ... AS`
 
 `Table.as("alias")` works on the delete side too. The alias

@@ -70,6 +70,50 @@ describe("FK accessors end-to-end", () => {
     });
   });
 
+  it("find().delete() removes the row and reports rowCount: 1; missing id reports 0", async () => {
+    await withTestSchema("tenon_find_delete", async (schema) => {
+      const client = await sharedPool.connect();
+      try {
+        await client.query(
+          `CREATE TABLE "${schema}"."users" (
+             id integer PRIMARY KEY,
+             email text NOT NULL
+           )`,
+        );
+        await client.query(
+          `INSERT INTO "${schema}"."users" (id, email) VALUES
+             (1, 'a@example.com'),
+             (2, 'b@example.com')`,
+        );
+      } finally {
+        client.release();
+      }
+
+      const { users } = defineSchema({
+        users: defineTable(
+          schema,
+          "users",
+          { id: idColumn, email: textColumn },
+          [],
+          { columns: ["id"] },
+        ),
+      });
+
+      const db = new Database(sharedPool);
+      const deleted = await db.run(users.find(1).delete());
+      expect(deleted).toEqual({ rowCount: 1 });
+
+      const remaining = await db.run(users.find(1));
+      expect(remaining).toBeNull();
+
+      const stillThere = await db.run(users.find(2));
+      expect(stillThere).toEqual({ id: 2, email: "b@example.com" });
+
+      const missing = await db.run(users.find(999).delete());
+      expect(missing).toEqual({ rowCount: 0 });
+    });
+  });
+
   it("orThrow rejects with RowNotFoundError when no row matches", async () => {
     await withTestSchema("tenon_or_throw", async (schema) => {
       const client = await sharedPool.connect();

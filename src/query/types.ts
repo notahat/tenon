@@ -12,7 +12,7 @@ import type { AliasedColumn } from "./AliasedColumn.js";
 import type { Column } from "./Column.js";
 import type { Expression } from "./Expression.js";
 import type { Relation } from "./Relation.js";
-import type { SingleRow } from "./SingleRow.js";
+import type { DeletableSingleRow, SingleRow } from "./SingleRow.js";
 
 /**
  * Values acceptable on the right-hand side of an ordering or equality
@@ -600,10 +600,13 @@ export type AccessorsFor<
 
 /**
  * The result of `Table.find(id)` once `defineSchema` has wired the
- * association map. A plain `SingleRow<C>` plus the accessor record
- * for the source table.
+ * association map. A `DeletableSingleRow<C>` plus the accessor record
+ * for the source table — Deletable because `Table.find` always
+ * produces the deletable variant; the accessor-derived SingleRows
+ * (belongs-to chains) stay plain because their underlying join shape
+ * isn't a simple WHERE.
  */
 export type WiredSingleRow<
   T extends TableShape,
   S extends Record<string, TableShape>,
-> = SingleRow<T["_columns"]> & AccessorsFor<T, S>;
+> = DeletableSingleRow<T["_columns"]> & AccessorsFor<T, S>;

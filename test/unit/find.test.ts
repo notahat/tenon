@@ -4,14 +4,16 @@
 
 import { describe, expect, it } from "vitest";
 
+import { Delete } from "../../src/query/Delete.js";
 import {
+  DeletableSingleRow,
   RowNotFoundError,
   SingleRow,
   SingleRowOrThrow,
 } from "../../src/query/SingleRow.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
-import { relationToSql } from "../../src/sql/serialise.js";
+import { deleteToSql, relationToSql } from "../../src/sql/serialise.js";
 
 const users = defineTable(
   "public",
@@ -33,7 +35,11 @@ const users = defineTable(
 );
 
 describe("Table.find", () => {
-  it("returns a SingleRow value", () => {
+  it("returns a DeletableSingleRow value", () => {
+    expect(users.find(1)).toBeInstanceOf(DeletableSingleRow);
+  });
+
+  it("is also a SingleRow (DeletableSingleRow extends SingleRow)", () => {
     expect(users.find(1)).toBeInstanceOf(SingleRow);
   });
 
@@ -60,6 +66,39 @@ describe("SingleRow.orThrow", () => {
     const throwing = single.orThrow();
     expect(throwing).toBeInstanceOf(SingleRowOrThrow);
     expect(throwing.node).toBe(single.node);
+  });
+});
+
+describe("DeletableSingleRow.delete", () => {
+  it("returns a Delete instance", () => {
+    expect(users.find(1).delete()).toBeInstanceOf(Delete);
+  });
+
+  it("emits DELETE FROM ... WHERE pk = ? without LIMIT", () => {
+    const compiled = deleteToSql(users.find(42).delete().node);
+    expect(compiled.text).toBe(
+      `DELETE FROM "public"."users" WHERE ("users"."id" = $1)`,
+    );
+    expect(compiled.params).toEqual([42]);
+  });
+
+  it("preserves the table alias when called on an aliased table", () => {
+    const compiled = deleteToSql(users.as("u").find(7).delete().node);
+    expect(compiled.text).toBe(
+      `DELETE FROM "public"."users" AS "u" WHERE ("u"."id" = $1)`,
+    );
+    expect(compiled.params).toEqual([7]);
+  });
+
+  it("supports chaining .returning(...) for RETURNING clauses", () => {
+    const compiled = deleteToSql(
+      users.find(1).delete().returning(users.email).node,
+    );
+    expect(compiled.text).toBe(
+      `DELETE FROM "public"."users" WHERE ("users"."id" = $1) ` +
+        `RETURNING "users"."email"`,
+    );
+    expect(compiled.params).toEqual([1]);
   });
 });
 

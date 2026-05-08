@@ -80,6 +80,14 @@ test("the belongs-to accessor is absent on the parent side", () => {
   void schema.users.find(1).author;
 });
 
+test("the belongs-to accessor is a plain SingleRow without delete", () => {
+  // Belongs-to chains wrap an inner-join relation, not a flat WHERE,
+  // so they intentionally don't expose .delete(). Only the find-rooted
+  // SingleRow does.
+  // @ts-expect-error belongs-to accessor is plain SingleRow
+  void schema.posts.find(1).author.delete;
+});
+
 test("two FKs to the same parent disambiguate by FK column name", () => {
   const messages = defineTable(
     "public",

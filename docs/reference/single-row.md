@@ -1,17 +1,23 @@
-# `SingleRow<Columns>` and `SingleRowOrThrow<Columns>`
+# `SingleRow<Columns>`, `DeletableSingleRow<Columns>`, and `SingleRowOrThrow<Columns>`
 
 A pending query that the type system promises will return 0 or 1
 rows. Built by `Table.find(id)` (a primary-key lookup) and the
 association accessors merged onto its result by `defineSchema`.
 
 ```ts
-import { SingleRow, SingleRowOrThrow } from "@notahat/tenon";
+import {
+  DeletableSingleRow,
+  SingleRow,
+  SingleRowOrThrow,
+} from "@notahat/tenon";
 ```
 
-You don't usually construct either directly — `Table.find(id)`
-produces a `SingleRow<Columns>`, and `singleRow.orThrow()` produces
-a `SingleRowOrThrow<Columns>`. Both classes are exported so test
-code and helpers can name them.
+You don't usually construct any of these directly. `Table.find(id)`
+produces a `DeletableSingleRow<Columns>` (a `SingleRow` subclass
+with a `.delete()` method); belongs-to accessors wired by
+`defineSchema` produce plain `SingleRow<Columns>` values; and
+`singleRow.orThrow()` produces a `SingleRowOrThrow<Columns>`. All
+three classes are exported so test code and helpers can name them.
 
 ## Phantoms
 
@@ -38,6 +44,38 @@ unchanged; only the type and `db.run`'s contract differ:
 |---|---|
 | `SingleRow<C>` | `RowOf<C> \| null` |
 | `SingleRowOrThrow<C>` | `RowOf<C>` (rejects with `RowNotFoundError` when no row is returned) |
+
+## `DeletableSingleRow.delete()`
+
+```ts
+delete(): Delete<Columns, null>;
+```
+
+Build a [`Delete`](delete.md) targeting the same row as the
+underlying primary-key lookup. The wrapped `LIMIT 1` is dropped
+(Postgres has no `DELETE ... LIMIT`, and the primary-key predicate
+already restricts the statement to ≤1 row). `db.run(delete)`
+resolves to `{ rowCount: 0 | 1 }` — 0 when the row didn't exist,
+1 when it did. Chain `.returning(...)` to recover columns from the
+deleted row.
+
+`.delete()` is intentionally available **only** on the
+`DeletableSingleRow` returned by `Table.find(id)`. Belongs-to
+association accessors return plain `SingleRow` because their
+underlying SQL is an inner join, not a flat `WHERE pk = ?` —
+deleting through a join shape is out of scope for v1. Mirrors the
+[`Relation`](relation.md) / [`DeletableScope`](scope.md) split.
+
+```ts
+const result = await db.run(schema.posts.find(1).delete());
+//    ^? { readonly rowCount: number }
+
+// Recover the deleted body column on the way out:
+const [deleted] = await db.run(
+  schema.posts.find(1).delete().returning(schema.posts.body),
+);
+//      ^? { body: string } | undefined
+```
 
 ## `RowNotFoundError`
 

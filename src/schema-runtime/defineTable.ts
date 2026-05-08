@@ -24,7 +24,7 @@ import type { Expression } from "../query/Expression.js";
 import { Insert } from "../query/Insert.js";
 import { Relation } from "../query/Relation.js";
 import type { JoinBuilder } from "../query/Relation.js";
-import { SingleRow } from "../query/SingleRow.js";
+import { DeletableSingleRow } from "../query/SingleRow.js";
 import type { ForeignKeyTuple, InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
 import type { PrimaryKey } from "./primaryKey.js";
@@ -43,12 +43,13 @@ type FindMethod<Columns extends ColumnsShape, PK extends PrimaryKey> =
     ? Col extends keyof Columns
       ? {
           /**
-           * Look up a row by its primary key. Returns a SingleRow that
-           * runs to `RowOf<Columns> | null`, or `RowOf<Columns>` after
-           * `.orThrow()`. Available only on tables with a single-column
-           * primary key.
+           * Look up a row by its primary key. Returns a
+           * DeletableSingleRow that runs to `RowOf<Columns> | null`,
+           * `RowOf<Columns>` after `.orThrow()`, or builds a DELETE on
+           * the same primary-key predicate via `.delete()`. Available
+           * only on tables with a single-column primary key.
            */
-          find(id: Columns[Col]["_tsType"]): SingleRow<Columns>;
+          find(id: Columns[Col]["_tsType"]): DeletableSingleRow<Columns>;
         }
       : Record<never, never>
     : Record<never, never>;
@@ -280,14 +281,16 @@ function buildTable<
   if (primaryKey.columns.length === 1) {
     const pkColumn = primaryKey.columns[0]!;
     Object.assign(relation, {
-      find(id: unknown): SingleRow<Columns> {
+      find(id: unknown): DeletableSingleRow<Columns> {
         const predicate = binaryOp(
           "=",
           accessors[pkColumn]!.node,
           parameter(id),
         );
-        return new SingleRow<Columns>(
+        return new DeletableSingleRow<Columns>(
           limitNode(whereNode(node, predicate), 1),
+          node,
+          [predicate],
         );
       },
     });

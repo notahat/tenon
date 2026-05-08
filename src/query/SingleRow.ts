@@ -10,12 +10,22 @@
 // runtime by a `LIMIT 1` baked into the node by `Table.find`, and at
 // the type level by being a separate class from Relation.
 //
+// `DeletableSingleRow` is the subclass that `Table.find` actually
+// returns — same SELECT path, plus a `.delete()` method that builds a
+// DELETE on the underlying primary-key predicate. Association-built
+// SingleRows (belongs-to chains in defineSchema) construct plain
+// SingleRow because the underlying join shape can't be turned into a
+// flat DELETE. Mirrors the Relation / DeletableScope split.
+//
 // Out of scope: SQL serialisation (src/sql/serialise.ts); association
 // accessors merged onto SingleRow values by defineSchema (added in
 // steps 3 and 4 of the v1.11 plan).
 
-import type { RelationNode } from "../ast/relation.js";
+import { deleteNode } from "../ast/delete.js";
+import type { ExpressionNode } from "../ast/expression.js";
+import type { RelationNode, TableRef } from "../ast/relation.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";
+import { Delete } from "./Delete.js";
 
 /**
  * A query that returns 0 or 1 rows when run. `db.run(singleRow)`
@@ -40,6 +50,46 @@ export class SingleRow<Columns extends ColumnsShape> {
    */
   orThrow(): SingleRowOrThrow<Columns> {
     return new SingleRowOrThrow<Columns>(this.node);
+  }
+}
+
+/**
+ * A SingleRow that also knows how to build a DELETE for itself. The
+ * concrete class returned by `Table.find(id)`. `Database.run` matches
+ * via the SingleRow overload (subclass relation), so the SELECT path
+ * is unchanged; the extra surface is just `.delete()` returning a
+ * Delete that targets the same row by its primary-key predicate.
+ *
+ * The `LIMIT 1` baked into the wrapped RelationNode is dropped at
+ * DELETE time — Postgres doesn't support `DELETE ... LIMIT`, and the
+ * primary-key predicate already restricts the statement to at most
+ * one row.
+ */
+export class DeletableSingleRow<
+  Columns extends ColumnsShape,
+> extends SingleRow<Columns> {
+  constructor(
+    node: RelationNode,
+    private readonly target: TableRef,
+    private readonly predicates: readonly ExpressionNode[],
+  ) {
+    super(node);
+  }
+
+  /**
+   * Build a DELETE for this row. `db.run` resolves to `{ rowCount: 0
+   * | 1 }` — 0 when the row didn't exist, 1 when it did. Chain
+   * `.returning(...)` on the result to recover columns from the
+   * deleted row.
+   */
+  delete(): Delete<Columns, null> {
+    return new Delete<Columns, null>(
+      deleteNode({
+        target: this.target,
+        predicates: this.predicates,
+        allowEmptyPredicates: false,
+      }),
+    );
   }
 }
 

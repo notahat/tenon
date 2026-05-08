@@ -4,8 +4,9 @@
 import { expectTypeOf, test } from "vitest";
 
 import type { Database } from "../../src/executor/Database.js";
+import type { Delete } from "../../src/query/Delete.js";
 import type {
-  SingleRow,
+  DeletableSingleRow,
   SingleRowOrThrow,
 } from "../../src/query/SingleRow.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
@@ -61,8 +62,10 @@ const tenantUsersComposite = defineTable(
 
 type UsersColumns = (typeof users)["_columns"];
 
-test("find returns a SingleRow over the table's columns", () => {
-  expectTypeOf(users.find(1)).toEqualTypeOf<SingleRow<UsersColumns>>();
+test("find returns a DeletableSingleRow over the table's columns", () => {
+  expectTypeOf(users.find(1)).toEqualTypeOf<
+    DeletableSingleRow<UsersColumns>
+  >();
 });
 
 test("find's argument is typed by the primary-key column", () => {
@@ -98,4 +101,28 @@ test("db.run on a SingleRowOrThrow resolves to RowOf<C>", () => {
   expectTypeOf(database.run(users.find(1).orThrow())).toEqualTypeOf<
     Promise<{ id: number; email: string }>
   >();
+});
+
+test("find().delete() returns a Delete with no RETURNING projection", () => {
+  expectTypeOf(users.find(1).delete()).toEqualTypeOf<
+    Delete<UsersColumns, null>
+  >();
+});
+
+test("db.run on find().delete() resolves to a rowCount summary", () => {
+  expectTypeOf(database.run(users.find(1).delete())).toEqualTypeOf<
+    Promise<{ readonly rowCount: number }>
+  >();
+});
+
+test("delete is absent on the orThrow form", () => {
+  // @ts-expect-error orThrow is read-only; no delete on this branch
+  void users.find(1).orThrow().delete;
+});
+
+test("delete is absent on tables without a single-column primary key", () => {
+  // @ts-expect-error no find means no path to delete via find
+  void eventsNoPk.find;
+  // @ts-expect-error composite PK has no find either
+  void tenantUsersComposite.find;
 });

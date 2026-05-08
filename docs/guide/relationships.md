@@ -41,6 +41,11 @@ const list = await db.run(posts.find(1).comments);
 // orThrow: skip the null and reject when not found.
 const required = await db.run(comments.find(5).orThrow());
 //    ^? { id: number; ... }
+
+// Delete by primary key.
+const result = await db.run(posts.find(1).delete());
+//    ^? { readonly rowCount: number }
+// `result.rowCount` is 0 if no row matched, 1 if the row was deleted.
 ```
 
 ## How `find` works
@@ -84,6 +89,36 @@ The names are derived literally — no pluralisation library, no
 special-case singularisation beyond the `_id` rule. The trade-off
 is predictability over English-correctness.
 
+## Deleting by primary key
+
+`find(id).delete()` builds a `Delete` statement on the same
+primary-key predicate. The wrapped `LIMIT 1` is dropped because
+Postgres has no `DELETE ... LIMIT` and the predicate already
+restricts the statement to ≤1 row. `db.run(...)` resolves to
+`{ rowCount: 0 | 1 }` — 0 when the row didn't exist, 1 when it did.
+
+```ts
+await db.run(posts.find(42).delete());
+// DELETE FROM "posts" WHERE ("posts"."id" = $1)
+
+// Recover the row's columns on the way out:
+const [deleted] = await db.run(
+  posts.find(42).delete().returning(posts.body),
+);
+//      ^? { body: string } | undefined
+```
+
+`.delete()` is available **only** on the `find(id)` result —
+belongs-to accessors (e.g. `comments.find(5).post.delete()`) won't
+compile. Their underlying SQL is an inner join, not a flat
+`WHERE pk = ?`, and deleting through that shape is out of scope
+for v1. To delete the parent, follow the FK manually:
+
+```ts
+const post = await db.run(comments.find(5).post.orThrow());
+await db.run(posts.find(post.id).delete());
+```
+
 ## What you can't do (yet)
 
 - **Chained walks** like `comments.find(5).post.author`. The
@@ -95,6 +130,9 @@ is predictability over English-correctness.
 - **`findBy({ ... })`** for non-PK lookups. Use
   `users.where(users.email.eq("...")).limit(1)` and read the
   array.
+- **`update()`** on `find(id)` (or anywhere else). Update isn't
+  modelled in tenon yet; `delete()` is the only mutation you can
+  reach from a `find` anchor today.
 - **Composite primary keys.** `find` is omitted; use the
   appropriate `where(...)` chain.
 - **Accessors on plain `Relation` chains** (e.g.
