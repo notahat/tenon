@@ -1,5 +1,5 @@
 // Type-level tests for the FKs generic threading through Relation,
-// Table, JoinBuilder, and DeletableScope, and for the self-join
+// Table, JoinBuilder, and WritableScope, and for the self-join
 // brand on JoinBuilder.
 
 import { expectTypeOf, test } from "vitest";

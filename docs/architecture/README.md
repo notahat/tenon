@@ -9,7 +9,7 @@ tenon-generate (CLI)
 generated schema file  →  schema-runtime (defineTable, columnType)
         |
         v
-fluent classes (Relation, Insert, Delete, DeletableScope, ...)
+fluent classes (Relation, Insert, Delete, WritableScope, ...)
         |
         v  build AST
 ast/ (RelationNode, ExpressionNode, InsertNode, DeleteNode)

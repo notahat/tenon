@@ -19,7 +19,7 @@ Per-symbol API reference for every public export of
   helper between `.innerJoin(...)` and `.on(...)`.
 - [`Insert`](insert.md) — INSERT statements with optional
   `RETURNING`.
-- [`Delete`, `DeletableScope`](delete.md) — DELETE statements
+- [`Delete`, `WritableScope`](delete.md) — DELETE statements
   with optional `RETURNING` and the empty-WHERE guard.
 - [`SingleRow`, `SingleRowOrThrow`, `RowNotFoundError`](single-row.md) —
   primary-key lookup results from `Table.find(id)`.

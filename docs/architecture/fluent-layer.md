@@ -1,7 +1,7 @@
 # Fluent layer
 
 The user-facing classes that build AST nodes:
-`Relation`, `Insert`, `Delete`, `DeletableScope`, `SingleRow`,
+`Relation`, `Insert`, `Delete`, `WritableScope`, `SingleRow`,
 `DeletableSingleRow`, `SingleRowOrThrow`, plus the
 expression-side `Column`, `AliasedColumn`, `Expression`,
 `Ordering`, and `JoinBuilder`.
@@ -186,10 +186,10 @@ typed rows.
 
 Wraps a `DeleteNode`. Same `.returning(...)` story as `Insert`.
 
-### `DeletableScope<Alias, Columns> extends Relation<Columns>`
+### `WritableScope<Alias, Columns> extends Relation<Columns>`
 
 A `Relation` plus `.delete()` and a `.where` override that
-returns `DeletableScope` (so the scope stays alive across chained
+returns `WritableScope` (so the scope stays alive across chained
 `.where` calls). Other inherited operators (`.order`, `.limit`,
 `.project`, `.innerJoin`) widen back to plain `Relation` and lose
 `.delete` — which is correct: DELETE has no ORDER/LIMIT/PROJECT/JOIN
@@ -213,13 +213,13 @@ type-level `Record<never, never>`). The underlying AST is a
 captures the target `TableRef` and the primary-key predicate
 explicitly, so `.delete()` can build a `DeleteNode` without
 walking the wrapped node (the wrapped node has a `Limit` between
-the `Where` and the `TableRef`, which the `DeletableScope`
+the `Where` and the `TableRef`, which the `WritableScope`
 predicate-walker doesn't handle). The wrapped `LIMIT 1` is
 intentionally dropped at DELETE time: Postgres has no
 `DELETE ... LIMIT`, and the primary-key predicate already
 restricts the statement to ≤1 row.
 
-This split mirrors `Relation` / `DeletableScope`: read-side and
+This split mirrors `Relation` / `WritableScope`: read-side and
 mutation-side capabilities live on different classes so the type
 system can withhold `.delete()` from values where it would be
 unsound. Belongs-to accessors wired by `defineSchema` (next

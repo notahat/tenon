@@ -19,7 +19,7 @@ import {
 } from "../ast/relation.js";
 import { Column } from "../query/Column.js";
 import { Delete } from "../query/Delete.js";
-import { DeletableScope } from "../query/DeletableScope.js";
+import { WritableScope } from "../query/WritableScope.js";
 import type { Expression } from "../query/Expression.js";
 import { Insert } from "../query/Insert.js";
 import { Relation } from "../query/Relation.js";
@@ -140,7 +140,7 @@ export type Table<
      * also carries `.delete()`, which builds a DELETE using the
      * accumulated predicate chain.
      */
-    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns, FKs>;
+    where(predicate: Expression<boolean>): WritableScope<Alias, Columns, FKs>;
     /**
      * Footgun catch: builds a DELETE with no WHERE clause and the
      * `allowEmptyPredicates` flag off. The serialiser refuses to emit
@@ -258,8 +258,8 @@ function buildTable<
         insertNode({ target: node, columnValues }),
       );
     },
-    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns, FKs> {
-      return new DeletableScope<Alias, Columns, FKs>(
+    where(predicate: Expression<boolean>): WritableScope<Alias, Columns, FKs> {
+      return new WritableScope<Alias, Columns, FKs>(
         whereNode(node, predicate.node),
         node,
       );

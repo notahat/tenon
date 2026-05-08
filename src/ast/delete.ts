@@ -3,7 +3,7 @@
 // Sibling to RelationNode and InsertNode rather than a member of the
 // relation tree: the SELECT serialiser, the join machinery, and the
 // duplicate-column brand stay focused on relations. The fluent surface
-// (DeletableScope.delete, Table.delete, Table.deleteAll,
+// (WritableScope.delete, Table.delete, Table.deleteAll,
 // Delete.returning) builds these nodes; the SQL serialiser
 // (`deleteToSql`) consumes them.
 //
@@ -13,7 +13,7 @@
 // predicate list, which the serialiser refuses to emit.
 //
 // Out of scope: SQL serialisation (src/sql/serialise.ts); fluent
-// wrappers (src/query/Delete.ts, src/query/DeletableScope.ts);
+// wrappers (src/query/Delete.ts, src/query/WritableScope.ts);
 // UPDATE / DELETE ... USING, both deferred.
 
 import type { ExpressionNode } from "./expression.js";

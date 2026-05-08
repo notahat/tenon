@@ -15,7 +15,7 @@
 // DELETE on the underlying primary-key predicate. Association-built
 // SingleRows (belongs-to chains in defineSchema) construct plain
 // SingleRow because the underlying join shape can't be turned into a
-// flat DELETE. Mirrors the Relation / DeletableScope split.
+// flat DELETE. Mirrors the Relation / WritableScope split.
 //
 // Out of scope: SQL serialisation (src/sql/serialise.ts); association
 // accessors merged onto SingleRow values by defineSchema (added in

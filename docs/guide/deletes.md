@@ -123,7 +123,7 @@ column references resolve correctly.
 
 ## See also
 
-- [`Delete`, `DeletableScope`](../reference/delete.md) — the
+- [`Delete`, `WritableScope`](../reference/delete.md) — the
   fluent classes and `.returning(...)` signature.
 - [`Table.where`](../reference/table.md#wherepredicate),
   [`Table.delete`](../reference/table.md#delete),

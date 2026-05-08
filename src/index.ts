@@ -12,7 +12,7 @@ export { Relation } from "./query/Relation.js";
 export { Column } from "./query/Column.js";
 export { AliasedColumn } from "./query/AliasedColumn.js";
 export { Delete } from "./query/Delete.js";
-export { DeletableScope } from "./query/DeletableScope.js";
+export { WritableScope } from "./query/WritableScope.js";
 export { Expression } from "./query/Expression.js";
 export { Insert } from "./query/Insert.js";
 export { JoinBuilder } from "./query/JoinBuilder.js";

@@ -24,12 +24,12 @@ import type { Expression } from "./Expression.js";
 import { Relation } from "./Relation.js";
 import type { ForeignKeyTuple } from "./types.js";
 
-export class DeletableScope<
+export class WritableScope<
   TableName extends string,
   Columns extends ColumnsShape,
   FKs extends ForeignKeyTuple = readonly [],
 > extends Relation<Columns, FKs> {
-  // Phantom: lets the type system distinguish a DeletableScope from a
+  // Phantom: lets the type system distinguish a WritableScope from a
   // plain Relation at use sites. Never read at runtime.
   declare readonly _tableName: TableName;
 
@@ -46,8 +46,8 @@ export class DeletableScope<
    */
   override where(
     predicate: Expression<boolean>,
-  ): DeletableScope<TableName, Columns, FKs> {
-    return new DeletableScope<TableName, Columns, FKs>(
+  ): WritableScope<TableName, Columns, FKs> {
+    return new WritableScope<TableName, Columns, FKs>(
       whereNode(this.node, predicate.node),
       this.target,
     );
@@ -75,7 +75,7 @@ export class DeletableScope<
 /**
  * Walk a Where-chain rooted at a TableRef and return the predicates in
  * source order. The two construction sites — `Table.where` and
- * `DeletableScope.where` — both guarantee the wrapped node is a
+ * `WritableScope.where` — both guarantee the wrapped node is a
  * Where-chain over a TableRef, so the walk always terminates cleanly.
  */
 function collectWherePredicates(node: RelationNode): readonly ExpressionNode[] {

@@ -52,7 +52,7 @@ type Table<Alias, Columns, FKs, PK, Schema, PhysicalName> =
         RColumns, RFKs, RSchema, RPhysicalName
       >;
       insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null>;
-      where(predicate: Expression<boolean>): DeletableScope<Alias, Columns, FKs>;
+      where(predicate: Expression<boolean>): WritableScope<Alias, Columns, FKs>;
       delete(): Delete<Columns, null>;
       deleteAll(): Delete<Columns, null>;
     } & FindMethod<Columns, PK>;
@@ -120,11 +120,11 @@ generated), optional (nullable or has DEFAULT), or absent
 ### `.where(predicate)`
 
 ```ts
-where(predicate: Expression<boolean>): DeletableScope<Alias, Columns>;
+where(predicate: Expression<boolean>): WritableScope<Alias, Columns>;
 ```
 
 Narrow this table for read or DELETE. Overrides
-`Relation.where` — returns a [`DeletableScope`](delete.md), which
+`Relation.where` — returns a [`WritableScope`](delete.md), which
 is a `Relation` that also carries `.delete()`. `.order`,
 `.limit`, `.project`, `.innerJoin` widen back to `Relation` and
 drop `.delete`.

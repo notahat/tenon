@@ -1,13 +1,13 @@
-# `Delete<Columns, Returning>`, `DeletableScope<Alias, Columns>`
+# `Delete<Columns, Returning>`, `WritableScope<Alias, Columns>`
 
 A pending `DELETE` statement (`Delete`) and the where-narrowed
-scope on a base table that builds one (`DeletableScope`).
+scope on a base table that builds one (`WritableScope`).
 
 ```ts
-import { Delete, DeletableScope } from "@notahat/tenon";
+import { Delete, WritableScope } from "@notahat/tenon";
 ```
 
-You don't construct either directly. `DeletableScope` is returned
+You don't construct either directly. `WritableScope` is returned
 by `Table.where(predicate)`. `Delete` is returned by
 `scope.delete()`, `Table.delete()` (footgun catch), and
 `Table.deleteAll()`.
@@ -36,11 +36,11 @@ returning<const Items extends readonly ProjectableItem[]>(
 Add (or replace) the `RETURNING` clause. Items follow the same
 rules as `Relation.project` and `Insert.returning`.
 
-## `DeletableScope<Alias, Columns>` extends `Relation<Columns>`
+## `WritableScope<Alias, Columns>` extends `Relation<Columns>`
 
 A `Relation` plus `.delete()`. Returned by `Table.where(...)`.
 Inherits all the read operators from `Relation`, but only
-`.where` returns a `DeletableScope` again — the others widen back
+`.where` returns a `WritableScope` again — the others widen back
 to plain `Relation` and lose `.delete`.
 
 ### `.where(predicate)` (override)
@@ -48,7 +48,7 @@ to plain `Relation` and lose `.delete`.
 ```ts
 override where(
   predicate: Expression<boolean>,
-): DeletableScope<Alias, Columns>;
+): WritableScope<Alias, Columns>;
 ```
 
 Narrow the scope further. Like `Relation.where`, but returns the

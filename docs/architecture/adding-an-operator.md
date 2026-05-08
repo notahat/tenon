@@ -102,21 +102,21 @@ A few rules to follow:
   target's alias because predicates don't reference it; DELETE
   preserves it because they do.
 
-### 3. Fluent: `Delete.ts` and `DeletableScope.ts`
+### 3. Fluent: `Delete.ts` and `WritableScope.ts`
 
 Two classes:
 
 - `Delete<Columns, Returning>` wraps the AST node and exposes
   `.returning(...)`. Phantoms `_columns` and `_returning` carry
   through to overload resolution.
-- `DeletableScope<Alias, Columns> extends Relation<Columns>`
+- `WritableScope<Alias, Columns> extends Relation<Columns>`
   carries the where-narrowing chain and the eventual
   `.delete()`. Overrides `.where` so the scope stays alive
   across chained predicates; the inherited `.order`, `.limit`,
   etc. widen back to plain `Relation` (which doesn't carry
   `.delete`).
 
-`DeletableScope.delete()` walks its node back through the
+`WritableScope.delete()` walks its node back through the
 `Where` chain to the root `TableRef` and pulls out the
 predicates. The walk is local to the scope; nothing else needs
 it.
@@ -126,7 +126,7 @@ it.
 `Table<Alias, Columns>` grows three method types:
 
 ```ts
-where(predicate): DeletableScope<Alias, Columns>;  // override
+where(predicate): WritableScope<Alias, Columns>;  // override
 delete(): Delete<Columns, null>;
 deleteAll(): Delete<Columns, null>;
 ```
@@ -174,7 +174,7 @@ Identical shape to the Insert branch, swapping `deleteToSql` for
 
 ```ts
 export { Delete } from "./query/Delete.js";
-export { DeletableScope } from "./query/DeletableScope.js";
+export { WritableScope } from "./query/WritableScope.js";
 ```
 
 Test code and consumer helpers may want to name these classes;

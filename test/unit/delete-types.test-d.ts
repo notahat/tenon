@@ -1,5 +1,5 @@
 // Type-level tests for Table.delete / Table.deleteAll /
-// DeletableScope.delete / Delete.returning / Database.run dispatch.
+// WritableScope.delete / Delete.returning / Database.run dispatch.
 // `@ts-expect-error` lines document compile errors we rely on; if the
 // surrounding code starts compiling, the directive flags the
 // regression.
@@ -8,7 +8,7 @@ import { expectTypeOf, test } from "vitest";
 
 import type { Database } from "../../src/executor/Database.js";
 import { Delete } from "../../src/query/Delete.js";
-import { DeletableScope } from "../../src/query/DeletableScope.js";
+import { WritableScope } from "../../src/query/WritableScope.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
 
@@ -47,17 +47,17 @@ const posts = defineTable("public", "posts", {
 
 type UsersColumns = (typeof users)["_columns"];
 
-test("Table.where returns a DeletableScope", () => {
+test("Table.where returns a WritableScope", () => {
   const scope = users.where(users.id.eq(1));
-  expectTypeOf(scope).toMatchTypeOf<DeletableScope<"users", UsersColumns>>();
+  expectTypeOf(scope).toMatchTypeOf<WritableScope<"users", UsersColumns>>();
 });
 
-test("DeletableScope.where chains and stays in scope", () => {
+test("WritableScope.where chains and stays in scope", () => {
   const scope = users.where(users.id.eq(1)).where(users.active.eq(true));
-  expectTypeOf(scope).toMatchTypeOf<DeletableScope<"users", UsersColumns>>();
+  expectTypeOf(scope).toMatchTypeOf<WritableScope<"users", UsersColumns>>();
 });
 
-test("DeletableScope.delete returns Delete<Columns, null>", () => {
+test("WritableScope.delete returns Delete<Columns, null>", () => {
   const built = users.where(users.id.eq(1)).delete();
   expectTypeOf(built).toMatchTypeOf<Delete<UsersColumns, null>>();
 });
@@ -100,6 +100,6 @@ test(".delete is not exposed on a derived Relation (after .order)", () => {
 });
 
 test(".delete is not exposed on a joined relation", () => {
-  // @ts-expect-error joins return Relation, not DeletableScope
+  // @ts-expect-error joins return Relation, not WritableScope
   users.innerJoin(posts).on(users.id.eq(posts.authorId)).delete();
 });

@@ -1,5 +1,5 @@
 // Fluent wrapper around a DELETE AST tree. Built by
-// `DeletableScope.delete()` (the standard path), `Table.delete()` (the
+// `WritableScope.delete()` (the standard path), `Table.delete()` (the
 // runtime footgun catch — emits an empty-WHERE node that the
 // serialiser rejects), or `Table.deleteAll()` (the explicit "wipe the
 // table" form). `.returning(...)` adds (or replaces) the RETURNING
@@ -11,7 +11,7 @@
 // a ColumnsShape when one was (run resolves to RowOf<Returning>[]).
 //
 // Out of scope: SQL emission (src/sql/serialise.ts → deleteToSql);
-// the where-chain itself (src/query/DeletableScope.ts).
+// the where-chain itself (src/query/WritableScope.ts).
 
 import { deleteNode, type DeleteNode } from "../ast/delete.js";
 import type { ColumnsShape } from "../schema-runtime/columnType.js";

@@ -64,7 +64,7 @@ deleted row.
 association accessors return plain `SingleRow` because their
 underlying SQL is an inner join, not a flat `WHERE pk = ?` —
 deleting through a join shape is out of scope for v1. Mirrors the
-[`Relation`](relation.md) / [`DeletableScope`](scope.md) split.
+[`Relation`](relation.md) / [`WritableScope`](scope.md) split.
 
 ```ts
 const result = await db.run(schema.posts.find(1).delete());
