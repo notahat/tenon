@@ -18,16 +18,15 @@ const BINARY_SQL: Readonly<Record<BinaryOperator, string>> = {
   OR: "OR",
 };
 
-const UNARY_PREFIX: Readonly<Record<UnaryOperator, string>> = {
-  NOT: "NOT ",
-  "IS NULL": "",
-  "IS NOT NULL": "",
-};
+interface UnaryFix {
+  readonly prefix: string;
+  readonly suffix: string;
+}
 
-const UNARY_SUFFIX: Readonly<Record<UnaryOperator, string>> = {
-  NOT: "",
-  "IS NULL": " IS NULL",
-  "IS NOT NULL": " IS NOT NULL",
+const UNARY_FIX: Readonly<Record<UnaryOperator, UnaryFix>> = {
+  NOT: { prefix: "NOT ", suffix: "" },
+  "IS NULL": { prefix: "", suffix: " IS NULL" },
+  "IS NOT NULL": { prefix: "", suffix: " IS NOT NULL" },
 };
 
 /** SQL fragment for a binary operator (no surrounding whitespace). */
@@ -35,12 +34,7 @@ export function binarySql(operator: BinaryOperator): string {
   return BINARY_SQL[operator];
 }
 
-/** Prefix to emit before a unary operand, e.g. `"NOT "` or `""`. */
-export function unaryPrefixSql(operator: UnaryOperator): string {
-  return UNARY_PREFIX[operator];
-}
-
-/** Suffix to emit after a unary operand, e.g. `" IS NULL"` or `""`. */
-export function unarySuffixSql(operator: UnaryOperator): string {
-  return UNARY_SUFFIX[operator];
+/** Prefix and suffix to wrap around a unary operand. */
+export function unaryFix(operator: UnaryOperator): UnaryFix {
+  return UNARY_FIX[operator];
 }

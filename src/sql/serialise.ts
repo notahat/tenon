@@ -28,7 +28,7 @@ import type {
   TableRef,
 } from "../ast/relation.js";
 import { quoteIdent } from "./identifier.js";
-import { binarySql, unaryPrefixSql, unarySuffixSql } from "./operators.js";
+import { binarySql, unaryFix } from "./operators.js";
 
 /** A serialised SQL statement plus its bound parameters. */
 export interface CompiledQuery {
@@ -427,9 +427,8 @@ function emitExpression(node: ExpressionNode, context: EmitContext): string {
     }
     case "UnaryOp": {
       const operand = emitExpression(node.operand, context);
-      return `(${unaryPrefixSql(node.operator)}${operand}${unarySuffixSql(
-        node.operator,
-      )})`;
+      const { prefix, suffix } = unaryFix(node.operator);
+      return `(${prefix}${operand}${suffix})`;
     }
     case "InList": {
       const operand = emitExpression(node.operand, context);
