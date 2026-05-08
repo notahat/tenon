@@ -42,6 +42,16 @@ const stories = await db.run(
   posts.innerJoin(users).project(posts.body, users.email),
 );
 //    ^? Array<{ body: string; email: string }>
+
+// Primary-key lookup with FK-inferred association accessors. The
+// generated schema runs every Table through `defineSchema(...)`,
+// which merges has-many and belongs-to walks onto the result of
+// `Table.find(id)`.
+const post = await db.run(posts.find(1).orThrow());
+//    ^? { id: number; authorId: number; body: string }
+
+const comments = await db.run(posts.find(1).comments);
+//    ^? Array<{ id: number; postId: number; body: string }>
 ```
 
 `tenon` also supports single-row `INSERT` and predicate-narrowed
@@ -63,8 +73,10 @@ const stories = await db.run(
 
 Read operators (`project`, `where`, `order`, `limit`, `offset`,
 `innerJoin`), self-joins via `Table.as(alias)`, single-row
-`Table.insert(...)` with optional `.returning(...)`, and
-`Table.where(...).delete()` with optional `.returning(...)`.
+`Table.insert(...)` with optional `.returning(...)`,
+`Table.where(...).delete()` with optional `.returning(...)`,
+primary-key lookup via `Table.find(id)`, and FK-derived
+has-many / belongs-to accessors wired by `defineSchema`.
 PostgreSQL only, via [`pg`](https://www.npmjs.com/package/pg).
 
 Outer joins, aggregates / `group by`, set operations, sub-queries /

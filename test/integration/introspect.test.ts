@@ -56,11 +56,10 @@ describe("generateSchema", () => {
         const file = await readFile(outputPath, "utf8");
 
         expect(file).toContain(
-          `import { columnType, defineTable } from "@notahat/tenon/schema-runtime";`,
+          `import {\n  columnType,\n  defineSchema,\n  defineTable,\n} from "@notahat/tenon/schema-runtime";`,
         );
-        expect(file).toContain(
-          `export const users = defineTable("${schema}", "users", {`,
-        );
+        expect(file).toContain(`export const schema = defineSchema({`);
+        expect(file).toContain(`users: defineTable("${schema}", "users", {`);
         expect(file).toContain(
           `"id": columnType<number, "int4">({ nullable: false, hasDefault: false, isGenerated: false }),`,
         );
@@ -73,12 +72,13 @@ describe("generateSchema", () => {
         expect(file).toContain(
           `"created_at": columnType<Date, "timestamptz">({ nullable: false, hasDefault: false, isGenerated: false }),`,
         );
-        expect(file).toContain(
-          `export const posts = defineTable("${schema}", "posts", {`,
-        );
+        expect(file).toContain(`posts: defineTable("${schema}", "posts", {`);
         expect(file).toContain(
           `"author_id": columnType<number, "int4">({ nullable: false, hasDefault: false, isGenerated: false }),`,
         );
+        // Tables come back from pg_catalog in alphabetical order
+        // within a schema, so the destructure is `posts, users`.
+        expect(file).toContain(`export const { posts, users } = schema;`);
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }
@@ -226,14 +226,14 @@ describe("generateSchema", () => {
         });
         const file = await readFile(outputPath, "utf8");
         expect(file).toContain(`}, [
-  {
-    name: "posts_author_id_fkey",
-    columns: ["author_id"],
-    referencedSchema: "${schema}",
-    referencedTable: "users",
-    referencedColumns: ["id"],
-  },
-]);`);
+    {
+      name: "posts_author_id_fkey",
+      columns: ["author_id"],
+      referencedSchema: "${schema}",
+      referencedTable: "users",
+      referencedColumns: ["id"],
+    },
+  ], { columns: ["id"] }),`);
       } finally {
         await rm(tempDir, { recursive: true, force: true });
       }

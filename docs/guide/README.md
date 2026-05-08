@@ -13,14 +13,16 @@ the relevant page if you're not.
    operators, `.as("alias")`.
 5. [Joins](joins.md) — `innerJoin(...).on(...)`, self-joins via
    `Table.as(...)`, the duplicate-column compile error.
-6. [Inserts](inserts.md) — `Table.insert(attrs)` and
+6. [Relationships](relationships.md) — `Table.find(id)`,
+   has-many and belongs-to accessors via `defineSchema`.
+7. [Inserts](inserts.md) — `Table.insert(attrs)` and
    `.returning(...)`.
-7. [Deletes](deletes.md) — `Table.where(...).delete()`,
+8. [Deletes](deletes.md) — `Table.where(...).delete()`,
    `.deleteAll()`, the empty-WHERE guard.
-8. [Running queries](running-queries.md) — constructing a
+9. [Running queries](running-queries.md) — constructing a
    `Database`, what `.run()` returns, transactions.
-9. [Type mapping](type-mapping.md) — how Postgres types map to
-   TypeScript and why some types are returned as `string`.
+10. [Type mapping](type-mapping.md) — how Postgres types map to
+    TypeScript and why some types are returned as `string`.
 
 For full per-symbol details see the
 [reference](../reference/README.md). For internals see

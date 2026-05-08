@@ -21,6 +21,8 @@ Per-symbol API reference for every public export of
   `RETURNING`.
 - [`Delete`, `DeletableScope`](delete.md) — DELETE statements
   with optional `RETURNING` and the empty-WHERE guard.
+- [`SingleRow`, `SingleRowOrThrow`, `RowNotFoundError`](single-row.md) —
+  primary-key lookup results from `Table.find(id)`.
 - [`scope`, `Scope`](scope.md) — the `scope(...)` factory and
   type alias.
 - [Public type helpers](types.md) — `RowOf`, `ProjectableItem`,
@@ -30,8 +32,10 @@ Per-symbol API reference for every public export of
 ## Schema runtime — `@notahat/tenon/schema-runtime`
 
 - [`columnType`, `defineTable`, `ColumnType`, `ColumnsShape`,
-  `Table`](schema-runtime.md) — the surface imported by generated
-  schema files.
+  `Table`, `PrimaryKey`](schema-runtime.md) — the surface imported
+  by generated schema files.
+- [`defineSchema`, `WiredSchema`, `WiredTable`](define-schema.md) —
+  wires association accessors onto each `Table.find` result.
 
 ## CLI
 

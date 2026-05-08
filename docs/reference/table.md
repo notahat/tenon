@@ -1,14 +1,16 @@
-# `Table<Alias, Columns, FKs, Schema, PhysicalName>`
+# `Table<Alias, Columns, FKs, PK, Schema, PhysicalName>`
 
-The result of `defineTable(schema, name, columns, foreignKeys?)`.
+The result of `defineTable(schema, name, columns, foreignKeys?, primaryKey?)`.
 A `Table` is a `Relation<Columns, FKs>` with one `Column`
 accessor merged in per declared column, plus the methods below.
 
-Five generics carry the table's identity and metadata:
+Six generics carry the table's identity and metadata:
 
 - `Alias` — the column-reference qualifier (changes via `.as`).
 - `Columns` — the columns shape.
 - `FKs` — the foreign-key tuple emitted for this table.
+- `PK` — the primary-key column tuple. Single-column PKs surface
+  `Table.find(id)` (see below); composite or absent PKs omit it.
 - `Schema` — the literal schema name.
 - `PhysicalName` — the literal physical table name (preserved
   across aliasing).
@@ -26,13 +28,15 @@ exported from the schema-runtime subpath as `Table`. See
 ## Shape
 
 ```ts
-type Table<Alias, Columns, FKs, Schema, PhysicalName> =
+type Table<Alias, Columns, FKs, PK, Schema, PhysicalName> =
   Omit<Relation<Columns, FKs>, "where" | "innerJoin"> &
     Readonly<{
       _tableName: Alias;
       _schema: Schema;
       _physicalName: PhysicalName;
       _foreignKeys: FKs;
+      _primaryKey: PK;
+      _columnNames: readonly (keyof Columns & string)[];
     }> & {
       readonly [Name in keyof Columns & string]: Column<
         Alias, Name, Columns[Name]
@@ -40,7 +44,7 @@ type Table<Alias, Columns, FKs, Schema, PhysicalName> =
     } & {
       as<NewAlias extends string>(
         alias: NewAlias,
-      ): Table<NewAlias, Columns, FKs, Schema, PhysicalName>;
+      ): Table<NewAlias, Columns, FKs, PK, Schema, PhysicalName>;
       innerJoin<RColumns, RFKs, RSchema, RPhysicalName>(
         right: ...,
       ): JoinBuilder<
@@ -51,7 +55,7 @@ type Table<Alias, Columns, FKs, Schema, PhysicalName> =
       where(predicate: Expression<boolean>): DeletableScope<Alias, Columns, FKs>;
       delete(): Delete<Columns, null>;
       deleteAll(): Delete<Columns, null>;
-    };
+    } & FindMethod<Columns, PK>;
 ```
 
 The `Alias` parameter is the qualifier used in column references
@@ -147,9 +151,28 @@ Build a `DELETE` that wipes every row in this table. The
 throw. Reach for this only when you genuinely want to clear the
 table.
 
+### `.find(id)` (single-column PK only)
+
+```ts
+find(id: Columns[PkColumn]["_tsType"]): SingleRow<Columns>;
+```
+
+Look up a row by its primary key. Available only when `PK` is a
+single-column tuple — composite or absent PKs omit `find` from
+the type entirely (`Property 'find' does not exist on...`).
+
+The returned `SingleRow` runs to `RowOf<Columns> | null` via
+`db.run`, or `RowOf<Columns>` after `.orThrow()`. Once the table
+participates in `defineSchema`, the returned SingleRow also
+exposes association accessors.
+
+See [`SingleRow`](single-row.md) and [`defineSchema`](define-schema.md).
+
 ## See also
 
 - [Schema and introspection guide](../guide/schema-and-introspection.md).
+- [Relationships guide](../guide/relationships.md).
 - [`schema-runtime`](schema-runtime.md) for `defineTable`,
-  `columnType`, `ColumnsShape`.
+  `columnType`, `ColumnsShape`, `PrimaryKey`.
+- [`SingleRow`](single-row.md), [`defineSchema`](define-schema.md).
 - [`Insert`](insert.md), [`Delete`](delete.md).
