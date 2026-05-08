@@ -80,7 +80,9 @@ Read operators (`project`, `where`, `order`, `limit`, `offset`,
 `Table.where(...).delete()` with optional `.returning(...)`,
 primary-key lookup via `Table.find(id)` (with `.update` and
 `.delete` shorthand), and FK-derived has-many / belongs-to
-accessors wired by `defineSchema`. PostgreSQL only, via
+accessors wired by `defineSchema`. Integer and UUID primary keys
+both work; see the [UUID guide](docs/guide/uuids.md) for the
+recommended PG18 `uuidv7()` pattern. PostgreSQL only, via
 [`pg`](https://www.npmjs.com/package/pg).
 
 Outer joins, aggregates / `group by`, set operations, sub-queries /

@@ -123,3 +123,5 @@ edit your application code to narrow at the boundary.
   that emits the column types.
 - [`schema-runtime`](../reference/schema-runtime.md) for
   `columnType` and `ColumnType`.
+- [UUID primary keys](uuids.md) — applying the `string` mapping to
+  a UUID-keyed table with PG18's `uuidv7()` default.

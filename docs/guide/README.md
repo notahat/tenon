@@ -25,6 +25,8 @@ the relevant page if you're not.
     `Database`, what `.run()` returns, transactions.
 11. [Type mapping](type-mapping.md) — how Postgres types map to
     TypeScript and why some types are returned as `string`.
+12. [UUID primary keys](uuids.md) — the recommended pattern with
+    PG18's builtin `uuidv7()` and client-supplied overrides.
 
 For full per-symbol details see the
 [reference](../reference/README.md). For internals see
