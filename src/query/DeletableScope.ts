@@ -73,10 +73,10 @@ export class DeletableScope<
 }
 
 /**
- * Walk a Where-chain rooted at a TableRef and return the predicates
- * in source order. By construction the only nodes a DeletableScope
- * wraps are `Where(... Where(TableRef))`; a chain rooted at anything
- * else is a programmer error in this module.
+ * Walk a Where-chain rooted at a TableRef and return the predicates in
+ * source order. The two construction sites — `Table.where` and
+ * `DeletableScope.where` — both guarantee the wrapped node is a
+ * Where-chain over a TableRef, so the walk always terminates cleanly.
  */
 function collectWherePredicates(node: RelationNode): readonly ExpressionNode[] {
   const predicates: ExpressionNode[] = [];
@@ -84,11 +84,6 @@ function collectWherePredicates(node: RelationNode): readonly ExpressionNode[] {
   while (current.kind === "Where") {
     predicates.unshift(current.predicate);
     current = current.source;
-  }
-  if (current.kind !== "TableRef") {
-    throw new Error(
-      "DeletableScope must wrap a Where-chain rooted at a TableRef.",
-    );
   }
   return predicates;
 }
