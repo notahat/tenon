@@ -81,10 +81,13 @@ export type ProjectedShape<Items extends readonly ProjectableItem[]> = {
 };
 
 /**
- * Force the editor to display an object type as its resolved shape
- * rather than as a chain of generic aliases. The mapped type is a
- * structural no-op; the `& {}` intersection prevents TypeScript from
- * collapsing back to the alias name when rendering tooltips.
+ * Force the editor to display an object type as its resolved shape.
+ * Without this, TypeScript renders `RowOf<...>` and `InsertableAttrs<...>`
+ * tooltips as the alias name (or a long chain of nested aliases) rather
+ * than the concrete `{ id: number; ... }` shape users actually want to
+ * read. The mapped type is a structural no-op; the `& {}` intersection
+ * prevents TypeScript from collapsing back to the alias name when
+ * rendering tooltips.
  */
 type Prettify<T> = { [Name in keyof T]: T[Name] } & {};
 
