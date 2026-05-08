@@ -1,0 +1,112 @@
+// Type-level tests for the FKs generic threading through Relation,
+// Table, JoinBuilder, and DeletableScope. Behaviour-level tests for
+// the actual ON-clause inference live in their own files (commit 6+).
+
+import { expectTypeOf, test } from "vitest";
+
+import { columnType } from "../../src/schema-runtime/columnType.js";
+import { defineTable } from "../../src/schema-runtime/defineTable.js";
+import type { ForeignKey } from "../../src/schema-runtime/foreignKey.js";
+
+const users = defineTable("public", "users", {
+  id: columnType<number, "int4">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+  active: columnType<boolean, "bool">({
+    nullable: false,
+    hasDefault: false,
+    isGenerated: false,
+  }),
+});
+
+const posts = defineTable(
+  "public",
+  "posts",
+  {
+    id: columnType<number, "int4">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
+    author_id: columnType<number, "int4">({
+      nullable: false,
+      hasDefault: false,
+      isGenerated: false,
+    }),
+  },
+  [
+    {
+      name: "posts_author_id_fkey",
+      columns: ["author_id"],
+      referencedSchema: "public",
+      referencedTable: "users",
+      referencedColumns: ["id"],
+    },
+  ] as const,
+);
+
+test("a table without FKs carries an empty FK tuple", () => {
+  expectTypeOf(users._foreignKeys).toEqualTypeOf<readonly []>();
+});
+
+test("a table with FKs carries the literal FK tuple", () => {
+  type Expected = readonly [
+    {
+      readonly name: "posts_author_id_fkey";
+      readonly columns: readonly ["author_id"];
+      readonly referencedSchema: "public";
+      readonly referencedTable: "users";
+      readonly referencedColumns: readonly ["id"];
+    },
+  ];
+  expectTypeOf(posts._foreignKeys).toEqualTypeOf<Expected>();
+});
+
+test("Table.as preserves the FK tuple unchanged", () => {
+  const aliased = posts.as("p");
+  expectTypeOf(aliased._foreignKeys).toEqualTypeOf<typeof posts._foreignKeys>();
+});
+
+test(".where preserves FKs through the Relation chain", () => {
+  const filtered = posts.where(posts.author_id.eq(1));
+  expectTypeOf(filtered._foreignKeys).toEqualTypeOf<
+    typeof posts._foreignKeys
+  >();
+});
+
+test(".order preserves FKs through the Relation chain", () => {
+  const ordered = posts.order(posts.author_id.asc());
+  expectTypeOf(ordered._foreignKeys).toEqualTypeOf<typeof posts._foreignKeys>();
+});
+
+test(".limit and .offset preserve FKs through the Relation chain", () => {
+  const paged = posts.limit(10).offset(5);
+  expectTypeOf(paged._foreignKeys).toEqualTypeOf<typeof posts._foreignKeys>();
+});
+
+test(".project preserves FKs through the Relation chain", () => {
+  const projected = posts.project(posts.id);
+  expectTypeOf(projected._foreignKeys).toEqualTypeOf<
+    typeof posts._foreignKeys
+  >();
+});
+
+test("innerJoin's resulting Relation carries the merged FK union", () => {
+  const joined = posts
+    .innerJoin(users)
+    .on(posts.author_id.eq(users.id))
+    .project(posts.id, users.active);
+  expectTypeOf(joined._foreignKeys).toMatchTypeOf<readonly ForeignKey[]>();
+  // The merged tuple has at least the posts → users FK.
+  type Joined = typeof joined._foreignKeys;
+  type FirstFk = Joined extends readonly [infer First, ...infer _]
+    ? First
+    : never;
+  expectTypeOf<FirstFk>().toMatchTypeOf<{ readonly name: string }>();
+});
+
+test("FKs default to readonly [] when not supplied at definition", () => {
+  expectTypeOf(users._foreignKeys).toEqualTypeOf<readonly []>();
+});

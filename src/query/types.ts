@@ -6,6 +6,7 @@
 // definitions and erased at compile time.
 
 import type { ColumnType, ColumnsShape } from "../schema-runtime/columnType.js";
+import type { ForeignKey } from "../schema-runtime/foreignKey.js";
 import type { AliasedColumn } from "./AliasedColumn.js";
 import type { Column } from "./Column.js";
 import type { Expression } from "./Expression.js";
@@ -98,6 +99,26 @@ export type RowOf<Columns extends ColumnsShape> = Prettify<{
     ? Columns[Name]["_tsType"] | null
     : Columns[Name]["_tsType"];
 }>;
+
+/**
+ * A type-level list of foreign keys, threaded through Relation as the
+ * second generic. The runtime `ForeignKey` interface in
+ * `schema-runtime` carries the same shape; tuple inference at the
+ * `defineTable(...)` call site preserves the literal column and table
+ * names so later operators can reason about them.
+ */
+export type ForeignKeyTuple = readonly ForeignKey[];
+
+/**
+ * Combined FK list when two relations are joined. Order is preserved
+ * (left side first, right side second) so the inference path can
+ * search them deterministically. Composite FKs are filtered out at
+ * emit time, so every entry here is single-column.
+ */
+export type MergedForeignKeys<
+  L extends ForeignKeyTuple,
+  R extends ForeignKeyTuple,
+> = readonly [...L, ...R];
 
 /** The set of column names shared between two columns shapes. */
 export type DuplicateColumnNames<L, R> = Extract<keyof L & keyof R, string>;

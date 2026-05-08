@@ -19,9 +19,8 @@ import { DeletableScope } from "../query/DeletableScope.js";
 import type { Expression } from "../query/Expression.js";
 import { Insert } from "../query/Insert.js";
 import { Relation } from "../query/Relation.js";
-import type { InsertableAttrs } from "../query/types.js";
+import type { ForeignKeyTuple, InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
-import type { ForeignKey } from "./foreignKey.js";
 
 /**
  * The shape of a defined table: a Relation with column accessors
@@ -30,14 +29,15 @@ import type { ForeignKey } from "./foreignKey.js";
  * `FROM ... AS ...`. After `defineTable` it equals the table name;
  * after `.as("u")` it carries the user-supplied alias.
  */
-export type Table<Alias extends string, Columns extends ColumnsShape> = Omit<
-  Relation<Columns>,
-  "where"
-> &
+export type Table<
+  Alias extends string,
+  Columns extends ColumnsShape,
+  FKs extends ForeignKeyTuple = readonly [],
+> = Omit<Relation<Columns, FKs>, "where"> &
   Readonly<{
     _tableName: Alias;
     _schema: string;
-    _foreignKeys: readonly ForeignKey[];
+    _foreignKeys: FKs;
   }> & {
     readonly [Name in keyof Columns & string]: Column<
       Alias,
@@ -49,9 +49,10 @@ export type Table<Alias extends string, Columns extends ColumnsShape> = Omit<
      * Re-alias this table for use in joins. The returned Table shares
      * the same physical schema and name but qualifies its columns by
      * the new alias, so the same physical table can appear twice in
-     * one query (self-joins, plus column-name disambiguation).
+     * one query (self-joins, plus column-name disambiguation). FK
+     * metadata is preserved because FKs reference physical names.
      */
-    as<NewAlias extends string>(alias: NewAlias): Table<NewAlias, Columns>;
+    as<NewAlias extends string>(alias: NewAlias): Table<NewAlias, Columns, FKs>;
     /**
      * Build an INSERT against this table. Required keys (NOT NULL, no
      * DEFAULT, not generated) must be supplied; nullable keys and keys
@@ -66,7 +67,7 @@ export type Table<Alias extends string, Columns extends ColumnsShape> = Omit<
      * also carries `.delete()`, which builds a DELETE using the
      * accumulated predicate chain.
      */
-    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns>;
+    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns, FKs>;
     /**
      * Footgun catch: builds a DELETE with no WHERE clause and the
      * `allowEmptyPredicates` flag off. The serialiser refuses to emit
@@ -93,15 +94,17 @@ export type Table<Alias extends string, Columns extends ColumnsShape> = Omit<
 export function defineTable<
   TableName extends string,
   Columns extends ColumnsShape,
+  const FKs extends ForeignKeyTuple = readonly [],
 >(
   schema: string,
   name: TableName,
   columns: Columns,
-  foreignKeys: readonly ForeignKey[] = [],
-): Table<TableName, Columns> {
+  foreignKeys: FKs = [] as unknown as FKs,
+): Table<TableName, Columns, FKs> {
   return buildTable(schema, name, name, columns, foreignKeys) as Table<
     TableName,
-    Columns
+    Columns,
+    FKs
   >;
 }
 
@@ -112,18 +115,22 @@ export function defineTable<
  * picks the alias). FK metadata is preserved unchanged across aliasing
  * because FKs reference *physical* table names, not aliases.
  */
-function buildTable<Alias extends string, Columns extends ColumnsShape>(
+function buildTable<
+  Alias extends string,
+  Columns extends ColumnsShape,
+  FKs extends ForeignKeyTuple,
+>(
   schema: string,
   name: string,
   alias: Alias,
   columns: Columns,
-  foreignKeys: readonly ForeignKey[],
-): Table<Alias, Columns> {
+  foreignKeys: FKs,
+): Table<Alias, Columns, FKs> {
   const node =
     alias === name
       ? tableRef({ schema, name })
       : tableRef({ schema, name, alias });
-  const relation = new Relation<Columns>(node);
+  const relation = new Relation<Columns, FKs>(node);
   const accessors: Record<
     string,
     Column<
@@ -139,7 +146,9 @@ function buildTable<Alias extends string, Columns extends ColumnsShape>(
     _tableName: alias,
     _schema: schema,
     _foreignKeys: foreignKeys,
-    as<NewAlias extends string>(newAlias: NewAlias): Table<NewAlias, Columns> {
+    as<NewAlias extends string>(
+      newAlias: NewAlias,
+    ): Table<NewAlias, Columns, FKs> {
       return buildTable(schema, name, newAlias, columns, foreignKeys);
     },
     insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null> {
@@ -151,8 +160,8 @@ function buildTable<Alias extends string, Columns extends ColumnsShape>(
         insertNode({ target: node, columnValues }),
       );
     },
-    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns> {
-      return new DeletableScope<Alias, Columns>(
+    where(predicate: Expression<boolean>): DeletableScope<Alias, Columns, FKs> {
+      return new DeletableScope<Alias, Columns, FKs>(
         whereNode(node, predicate.node),
         node,
       );
@@ -168,5 +177,5 @@ function buildTable<Alias extends string, Columns extends ColumnsShape>(
       );
     },
   });
-  return relation as Table<Alias, Columns>;
+  return relation as Table<Alias, Columns, FKs>;
 }

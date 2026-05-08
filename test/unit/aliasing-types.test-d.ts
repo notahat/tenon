@@ -67,9 +67,9 @@ test("self-join without .project fails db.run on the duplicate brand", () => {
   void db.run(joined);
 });
 
-test("_foreignKeys is exposed as a readonly array of ForeignKey", () => {
-  expectTypeOf(users._foreignKeys).toEqualTypeOf<readonly ForeignKey[]>();
-  expectTypeOf(users.as("u")._foreignKeys).toEqualTypeOf<
+test("_foreignKeys is exposed as a tuple assignable to readonly ForeignKey[]", () => {
+  expectTypeOf(users._foreignKeys).toMatchTypeOf<readonly ForeignKey[]>();
+  expectTypeOf(users.as("u")._foreignKeys).toMatchTypeOf<
     readonly ForeignKey[]
   >();
 });

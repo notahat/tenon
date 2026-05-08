@@ -60,7 +60,12 @@ const teams = defineTable("public", "teams", {
 
 test("innerJoin returns a JoinBuilder, not a Relation", () => {
   expectTypeOf(users.innerJoin(posts)).toMatchTypeOf<
-    JoinBuilder<typeof users._columns, typeof posts._columns>
+    JoinBuilder<
+      typeof users._columns,
+      typeof users._foreignKeys,
+      typeof posts._columns,
+      typeof posts._foreignKeys
+    >
   >();
 });
 

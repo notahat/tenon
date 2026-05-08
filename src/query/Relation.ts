@@ -1,7 +1,9 @@
 // Fluent wrapper around a relation AST tree. Each operator method
-// returns a new Relation; nothing mutates. The phantom Columns generic
-// flows the relation's column shape forward so downstream operators
-// and projection inference can reason about it.
+// returns a new Relation; nothing mutates. Two phantom generics flow
+// through the chain: Columns describes the row shape after the chain
+// runs, and FKs is a tuple of foreign keys carried for join inference
+// (commit 6+ uses it to fill in the ON predicate when `.on(...)` is
+// omitted from `innerJoin`).
 //
 // Out of scope: SQL serialisation; column accessor merging (handled
 // by `defineTable`, which intersects this type with the per-column
@@ -20,18 +22,28 @@ import type { Expression } from "./Expression.js";
 import { JoinBuilder } from "./JoinBuilder.js";
 import type { Ordering } from "./Ordering.js";
 import { toProjectionItem } from "./projection.js";
-import type { ProjectableItem, ProjectedShape } from "./types.js";
+import type {
+  ForeignKeyTuple,
+  ProjectableItem,
+  ProjectedShape,
+} from "./types.js";
 
-export class Relation<Columns extends ColumnsShape> {
-  // Phantom: tracks the column shape so future projections / joins can
-  // narrow it. Never read at runtime.
+export class Relation<
+  Columns extends ColumnsShape,
+  FKs extends ForeignKeyTuple = readonly [],
+> {
+  // Phantoms: track the column shape and FK list so future projections
+  // and joins can narrow them. Never read at runtime on Relation
+  // itself; on Table the `_foreignKeys` field is also a real runtime
+  // value carrying the FK list emitted by `defineTable`.
   declare readonly _columns: Columns;
+  declare readonly _foreignKeys: FKs;
 
   constructor(readonly node: RelationNode) {}
 
   /** Filter this relation by a boolean expression. */
-  where(predicate: Expression<boolean>): Relation<Columns> {
-    return new Relation<Columns>(whereNode(this.node, predicate.node));
+  where(predicate: Expression<boolean>): Relation<Columns, FKs> {
+    return new Relation<Columns, FKs>(whereNode(this.node, predicate.node));
   }
 
   /**
@@ -40,32 +52,33 @@ export class Relation<Columns extends ColumnsShape> {
    * existing terms (outermost wins); use a single call with all terms
    * if you want a multi-column sort.
    */
-  order(...orderings: readonly Ordering[]): Relation<Columns> {
+  order(...orderings: readonly Ordering[]): Relation<Columns, FKs> {
     const terms = orderings.map((ordering) => ordering.node);
-    return new Relation<Columns>(orderNode(this.node, terms));
+    return new Relation<Columns, FKs>(orderNode(this.node, terms));
   }
 
   /** Cap this relation at `count` rows. */
-  limit(count: number): Relation<Columns> {
-    return new Relation<Columns>(limitNode(this.node, count));
+  limit(count: number): Relation<Columns, FKs> {
+    return new Relation<Columns, FKs>(limitNode(this.node, count));
   }
 
   /** Skip `count` rows before returning results. */
-  offset(count: number): Relation<Columns> {
-    return new Relation<Columns>(offsetNode(this.node, count));
+  offset(count: number): Relation<Columns, FKs> {
+    return new Relation<Columns, FKs>(offsetNode(this.node, count));
   }
 
   /**
    * Restrict (and optionally rename) the columns this relation
    * exposes. The resulting Relation's columns shape is inferred from
    * the literal types of the items so callers see a precise row
-   * shape after `db.run(...)`.
+   * shape after `db.run(...)`. FKs are preserved unchanged because
+   * they describe the source tables, not the projected row shape.
    */
   project<const Items extends readonly ProjectableItem[]>(
     ...items: Items
-  ): Relation<ProjectedShape<Items>> {
+  ): Relation<ProjectedShape<Items>, FKs> {
     const projectionItems = items.map(toProjectionItem);
-    return new Relation<ProjectedShape<Items>>(
+    return new Relation<ProjectedShape<Items>, FKs>(
       projectNode(this.node, projectionItems),
     );
   }
@@ -77,19 +90,23 @@ export class Relation<Columns extends ColumnsShape> {
    *
    * The right side is restricted to a `defineTable(...)` value (it
    * must carry `_tableName` / `_schema`) so the join's right side is
-   * a base table reference, not an arbitrary sub-query.
+   * a base table reference, not an arbitrary sub-query. The right
+   * side's FK tuple is captured for later inference passes.
    */
-  innerJoin<RColumns extends ColumnsShape>(
-    right: Relation<RColumns> & {
+  innerJoin<
+    RColumns extends ColumnsShape,
+    RFKs extends ForeignKeyTuple = readonly [],
+  >(
+    right: Relation<RColumns, RFKs> & {
       readonly _tableName: string;
       readonly _schema: string;
     },
-  ): JoinBuilder<Columns, RColumns> {
+  ): JoinBuilder<Columns, FKs, RColumns, RFKs> {
     if (right.node.kind !== "TableRef") {
       throw new Error(
         "innerJoin's right side must be a defined table (got a derived relation).",
       );
     }
-    return new JoinBuilder<Columns, RColumns>(this.node, right.node);
+    return new JoinBuilder<Columns, FKs, RColumns, RFKs>(this.node, right.node);
   }
 }
