@@ -12,15 +12,17 @@ class Database {
 
 ## Overload dispatch
 
-`run` has five overloads, declared **before** the implementation
+`run` has seven overloads, declared **before** the implementation
 signature:
 
 ```ts
-run<C, R>(remove: Delete<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
-run<C>(remove: Delete<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
-run<C, R>(insert: Insert<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
-run<C>(insert: Insert<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
-run<C>(query: Relation<C> & { ...no-brand check... }, client?: PoolClient): Promise<RowOf<C>[]>;
+run<C, R>(statement: Delete<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
+run<C>(statement: Delete<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
+run<C, R>(statement: Insert<C, R>, client?: PoolClient): Promise<RowOf<R>[]>;
+run<C>(statement: Insert<C, null>, client?: PoolClient): Promise<{ readonly rowCount: number }>;
+run<C>(statement: SingleRowOrThrow<C>, client?: PoolClient): Promise<RowOf<C>>;
+run<C>(statement: SingleRow<C>, client?: PoolClient): Promise<RowOf<C> | null>;
+run<C>(statement: Relation<C> & { ...no-brand check... }, client?: PoolClient): Promise<RowOf<C>[]>;
 ```
 
 Order matters within a class:
@@ -30,6 +32,10 @@ Order matters within a class:
   TypeScript picks the first overload that fits; putting the
   more-specific overload first means `.returning(...)` calls
   resolve to the rows form, not the rowCount form.
+- `SingleRowOrThrow` comes before `SingleRow` for the same
+  reason: the throwing variant has the narrower return type
+  (`RowOf<C>`), so listing it first lets `find(id).orThrow()`
+  pick it over the nullable form.
 - The `Relation` overload comes last. Its argument type
   intersects in a structural check
   (`{ readonly _columns: { readonly __tenonDuplicateColumns?: never } }`)
@@ -37,10 +43,22 @@ Order matters within a class:
   from a join. The brand becomes a compile error at the call
   site rather than a "weird Postgres error" at runtime.
 
-Order between classes (Delete / Insert / Relation) doesn't
-matter because they're discriminated by class — but the
-implementation cascade reads top to bottom, so keep the order
-consistent.
+Order between classes (Delete / Insert / SingleRow / Relation)
+doesn't matter for type-level dispatch — they're discriminated
+by class — but the implementation cascade reads top to bottom,
+so keep the order consistent.
+
+`SingleRow` and `Relation` are the one place where the dispatch
+needs help from a phantom field: both wrap a `RelationNode`, so
+`Relation<C>` is structurally assignable to `SingleRow<C>`.
+Without a discriminator, TypeScript would happily match the
+`SingleRow` overload for plain Relations, returning `RowOf<C> |
+null` instead of `RowOf<C>[]`. The
+`declare readonly _kind: "SingleRow"` phantom on `SingleRow`
+breaks that match — Relation has no `_kind` field, so it can't
+satisfy the SingleRow overload. (This is the cross-class
+discriminator pattern documented in
+[fluent-layer.md](fluent-layer.md#phantom-types).)
 
 ## Implementation cascade
 
@@ -48,19 +66,31 @@ The implementation signature accepts a union and dispatches by
 `instanceof`:
 
 ```ts
-async run(query, client?) {
+async run(statement, client?) {
   const runner = client ?? this.pool;
-  if (query instanceof Insert) {
-    const compiled = insertToSql(query.node);
+  if (statement instanceof Insert) {
+    const compiled = insertToSql(statement.node);
     const result = await runner.query(compiled.text, [...compiled.params]);
-    if (query.node.returning === null) return { rowCount: result.rowCount ?? 0 };
+    if (statement.node.returning === null) return { rowCount: result.rowCount ?? 0 };
     return result.rows;
   }
-  if (query instanceof Delete) {
+  if (statement instanceof Delete) {
     // identical shape, deleteToSql instead
   }
+  if (statement instanceof SingleRowOrThrow) {
+    const compiled = relationToSql(statement.node);
+    const result = await runner.query(compiled.text, [...compiled.params]);
+    const first = result.rows[0];
+    if (first === undefined) throw new RowNotFoundError();
+    return first;
+  }
+  if (statement instanceof SingleRow) {
+    const compiled = relationToSql(statement.node);
+    const result = await runner.query(compiled.text, [...compiled.params]);
+    return result.rows[0] ?? null;
+  }
   // fall through: it's a Relation
-  const compiled = relationToSql(query.node);
+  const compiled = relationToSql(statement.node);
   const result = await runner.query(compiled.text, [...compiled.params]);
   return result.rows;
 }
@@ -70,9 +100,20 @@ async run(query, client?) {
 care about the type-system phantoms. The runtime correctness
 check is "what class is this", not "what generics does it carry".
 
-The `Insert` and `Delete` branches both check `query.node.returning
+The `Insert` and `Delete` branches both check `statement.node.returning
 === null` to pick between the rowCount form and the rows form.
 That's the runtime mirror of the overloads on `_returning`.
+
+The `SingleRow` and `SingleRowOrThrow` branches share the same
+`relationToSql` path as the `Relation` branch — there is no
+SingleRow-specific AST node — and differ only in how they
+unwrap the result rows. The `SingleRowOrThrow` check has to
+come **before** `SingleRow`: `SingleRowOrThrow` is its own
+class, but if it inherited from `SingleRow` it would also pass
+`instanceof SingleRow` and silently route through the wrong
+branch. They don't inherit from each other today, so the order
+is style only — but flipping it would be a footgun if that
+relationship ever changes.
 
 ## `QueryRunner`
 

@@ -16,10 +16,10 @@ new Database(pool: Pool): Database;
 `pool` is a `pg.Pool`. `Database` does not own its lifecycle;
 the caller is responsible for `pool.end()`.
 
-## `db.run(query, client?)`
+## `db.run(statement, client?)`
 
-Compiles `query` to SQL and runs it. Five overloads, picked by the
-runtime kind of `query`:
+Compiles `statement` to SQL and runs it. Seven overloads, picked
+by the runtime kind of `statement`:
 
 | Argument                                     | Resolves to                              |
 | -------------------------------------------- | ---------------------------------------- |
@@ -28,6 +28,8 @@ runtime kind of `query`:
 | `Insert<Columns, Returning>`                 | `Promise<RowOf<Returning>[]>`            |
 | `Delete<Columns, null>`                      | `Promise<{ readonly rowCount: number }>` |
 | `Delete<Columns, Returning>`                 | `Promise<RowOf<Returning>[]>`            |
+| `SingleRow<Columns>`                         | `Promise<RowOf<Columns> \| null>`        |
+| `SingleRowOrThrow<Columns>`                  | `Promise<RowOf<Columns>>` (rejects with `RowNotFoundError` when no row matches) |
 
 Optional `client: PoolClient` routes through a specific pooled
 client — typically one already inside a caller-managed
@@ -35,7 +37,9 @@ transaction. If omitted, the query runs through the pool.
 
 A relation whose columns shape carries the duplicate-column brand
 (produced by an inner join with overlapping column names) is
-rejected at compile time. See [joins](../guide/joins.md).
+rejected at compile time. See [joins](../guide/joins.md). The
+ambiguous-has-many brand on FK accessors is rejected the same way;
+see [`defineSchema`](define-schema.md).
 
 A `Delete` with no WHERE and the empty-WHERE flag off (the bare
 `Table.delete()` form) throws **before** any SQL is sent. The
@@ -63,3 +67,5 @@ await pool.end();
 - [Running queries guide](../guide/running-queries.md) for the
   transaction passthrough and error semantics.
 - [`RowOf`](types.md#rowof) for the per-row type produced.
+- [`SingleRow`, `SingleRowOrThrow`, `RowNotFoundError`](single-row.md) —
+  primary-key lookup results from `Table.find(id)`.
