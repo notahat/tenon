@@ -33,86 +33,36 @@ const recent = await db.run(
     .project(users.email, posts.body.as("post")),
 );
 //    ^? Array<{ email: string; post: string }>
-
-// Insert with RETURNING: serial PKs and DEFAULT-bearing columns are
-// optional in the attrs object; generated columns are absent entirely.
-const created = await db.run(
-  users
-    .insert({ email: "pete@notahat.com", active: true })
-    .returning(users.id, users.createdAt),
-);
-//    ^? Array<{ id: number; createdAt: Date }>
-
-// Insert without RETURNING resolves to a row count.
-const result = await db.run(
-  users.insert({ email: "two@notahat.com", active: true }),
-);
-//    ^? { rowCount: number }
-
-// Delete via a where-narrowed scope: chained predicates AND together,
-// .returning(...) pulls the deleted rows back, and only .where keeps
-// the scope alive (.order/.limit/.project widen back to Relation and
-// drop .delete).
-const removed = await db.run(
-  users
-    .where(users.email.eq("pete@notahat.com"))
-    .where(users.active.eq(true))
-    .delete()
-    .returning(users.id, users.email),
-);
-//    ^? Array<{ id: number; email: string }>
-
-// Delete without RETURNING resolves to a row count.
-const cleared = await db.run(users.where(users.active.eq(false)).delete());
-//    ^? { rowCount: number }
-
-// Wiping every row is opt-in: bare `users.delete()` throws before any
-// SQL is sent. Use `users.deleteAll()` to actually clear the table.
-await db.run(users.deleteAll());
 ```
+
+`tenon` also supports single-row `INSERT` and predicate-narrowed
+`DELETE`, both with optional `RETURNING`. See the
+[guide](docs/guide/README.md) for full coverage.
+
+## Documentation
+
+- **[Guide](docs/guide/README.md)** — task-oriented walkthroughs:
+  installation, schema generation, queries, joins, inserts, deletes,
+  type-mapping caveats.
+- **[Reference](docs/reference/README.md)** — per-symbol API reference
+  for every public export.
+- **[Architecture](docs/architecture/README.md)** — internals: the
+  AST → fluent → serialiser → executor pipeline and how to extend
+  it.
 
 ## Current scope
 
-- Read operators: `project`, `where`, `order`, `limit`, `offset`,
-  `innerJoin ... on`. Tables expose `.as(alias)` for renaming (enables
-  self-joins and disambiguation).
-- Write operators: single-row `Table.insert(attrs)` with optional
-  `.returning(...)`. `Table.where(...).delete()` for predicate-narrowed
-  DELETE (chained `.where` ANDs together; `.returning(...)` pulls back
-  the deleted rows). `Table.deleteAll()` is the explicit "wipe every
-  row" form; bare `Table.delete()` throws at serialisation rather than
-  silently emitting a no-WHERE DELETE.
-- PostgreSQL only, via [`pg`](https://www.npmjs.com/package/pg).
-- Schema generated from a live database via the `tenon-generate` CLI.
-  The introspector reads `nullable`, `hasDefault` (DEFAULT clauses and
-  identity columns), and `isGenerated` (STORED generated expressions)
-  per column, so insert types know what to require, allow, and forbid.
-- Type system enforces: column existence, column types in expressions,
-  precise result-row types from `project`, a compile-time error at
-  `db.run` if a joined relation has duplicate column names (project or
-  alias to fix), and — for inserts — required NOT NULL columns are
-  required, columns with defaults are optional, and generated columns
-  are absent from the attrs type entirely.
+Read operators (`project`, `where`, `order`, `limit`, `offset`,
+`innerJoin`), self-joins via `Table.as(alias)`, single-row
+`Table.insert(...)` with optional `.returning(...)`, and
+`Table.where(...).delete()` with optional `.returning(...)`.
+PostgreSQL only, via [`pg`](https://www.npmjs.com/package/pg).
 
-## Deferred
-
-Outer joins (`leftJoin` / `rightJoin` / `fullJoin`), aggregates and
-`group by`, set operations, sub-queries / CTEs, multi-row inserts,
-`ON CONFLICT`, `UPDATE`, `DELETE ... USING`, the Rails-style
-`Table.where(...).insert(attrs)` chain, transactions, and streaming
-are not yet implemented. The AST and type plumbing are designed to
+Outer joins, aggregates / `group by`, set operations, sub-queries /
+CTEs, multi-row inserts, `ON CONFLICT`, `UPDATE`, `DELETE ... USING`,
+the Rails-style `Table.where(...).insert(attrs)` chain, transactions,
+and streaming are deferred. The AST and type plumbing are designed to
 absorb them without breaking changes.
-
-## Type-mapping notes (worth knowing up front)
-
-- `int8` and `numeric` are returned as `string`. JavaScript `number`
-  cannot losslessly represent `int8` past 2^53, and `numeric` is
-  arbitrary precision. This matches `pg`'s default behaviour.
-- `timestamp` (without time zone) is returned as `string`. A JavaScript
-  `Date` is always a UTC instant, which would be a lie for a tz-less
-  timestamp. Use `timestamptz` if you can.
-- Custom types (enums, PostGIS, hstore, etc.) fall back to `string` with
-  a comment in the generated schema file.
 
 ## Development
 

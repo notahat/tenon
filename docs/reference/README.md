@@ -1,0 +1,39 @@
+# Reference
+
+Per-symbol API reference for every public export of
+`@notahat/tenon` and `@notahat/tenon/schema-runtime`, plus the
+`tenon-generate` CLI.
+
+## Main entry — `@notahat/tenon`
+
+- [`Database`](database.md) — runs queries against a `pg` pool.
+- [`Relation`](relation.md) — composable read operators
+  (`project`, `where`, `order`, `limit`, `offset`, `innerJoin`).
+- [`Table`](table.md) — the merged Relation + columns shape
+  returned by `defineTable`. Carries `.as`, `.insert`, `.where`,
+  `.delete`, `.deleteAll`.
+- [`Column`, `AliasedColumn`, `Expression`](column-and-expressions.md) —
+  column references and comparison operators.
+- [`Ordering`](ordering.md) — `.asc` / `.desc`.
+- [`JoinBuilder`](join-builder.md) — the partial-application
+  helper between `.innerJoin(...)` and `.on(...)`.
+- [`Insert`](insert.md) — INSERT statements with optional
+  `RETURNING`.
+- [`Delete`, `DeletableScope`](delete.md) — DELETE statements
+  with optional `RETURNING` and the empty-WHERE guard.
+- [`scope`, `Scope`](scope.md) — the `scope(...)` factory and
+  type alias.
+- [Public type helpers](types.md) — `RowOf`, `ProjectableItem`,
+  `ProjectedShape`, `MergedColumns`, `InsertableAttrs`,
+  `ComparableTo`.
+
+## Schema runtime — `@notahat/tenon/schema-runtime`
+
+- [`columnType`, `defineTable`, `ColumnType`, `ColumnsShape`,
+  `Table`](schema-runtime.md) — the surface imported by generated
+  schema files.
+
+## CLI
+
+- [`tenon-generate`](tenon-generate.md) — introspect a live
+  Postgres database and emit a typed schema file.
