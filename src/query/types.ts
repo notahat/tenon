@@ -122,22 +122,16 @@ export type MergedForeignKeys<
 
 /**
  * True when `LSchema.LName` and `RSchema.RName` resolve to the same
- * literal physical (schema, name) pair. Uses the
- * `[A, B] extends [B, A]` tuple-equality dance to enforce literal
- * equality in both directions; widened (`string`) parameters fail
- * the bidirectional check because `string` is not assignable to a
- * literal.
+ * physical (schema, name) pair. Used only after `AnyIdentityWidened`
+ * has filtered out wide-`string` cases, so all four parameters are
+ * literals and a one-directional tuple check suffices.
  */
-export type IsSamePhysicalTable<
+type IsSamePhysicalTable<
   LSchema extends string,
   LName extends string,
   RSchema extends string,
   RName extends string,
-> = [LSchema, LName] extends [RSchema, RName]
-  ? [RSchema, RName] extends [LSchema, LName]
-    ? true
-    : false
-  : false;
+> = [LSchema, LName] extends [RSchema, RName] ? true : false;
 
 /**
  * Brand intersected onto a JoinBuilder's merged-columns shape when
