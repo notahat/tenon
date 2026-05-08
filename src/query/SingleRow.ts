@@ -1,13 +1,15 @@
 // Fluent wrapper around a RelationNode that the type system promises
-// will produce 0 or 1 rows. Built by `Table.find(id)` (a primary-key
+// will produce a single row. Built by `Table.find(id)` (a primary-key
 // lookup) and threaded through `db.run` with a different return shape:
-// `RowOf<Columns> | null` rather than `RowOf<Columns>[]`. Calling
-// `.orThrow()` produces a `SingleRowOrThrow<Columns>` whose `db.run`
-// returns `RowOf<Columns>` directly and rejects with a not-found error.
+// `RowOf<Columns>` rather than `RowOf<Columns>[]`. If the underlying
+// query returns no rows, `db.run` rejects with `RowNotFoundError`;
+// there is no nullable variant. Callers who want to tolerate a missing
+// row should drop down to `.where(...)` and inspect the resulting
+// array.
 //
 // SingleRow is structurally a thin tag over a RelationNode — same SQL
-// emission path as Relation. The "0 or 1" promise is enforced at the
-// runtime by a `LIMIT 1` baked into the node by `Table.find`, and at
+// emission path as Relation. The "exactly one row" promise is enforced
+// at runtime by a `LIMIT 1` baked into the node by `Table.find` and at
 // the type level by being a separate class from Relation.
 //
 // `WritableSingleRow` is the subclass that `Table.find` actually
@@ -19,8 +21,7 @@
 // Relation / WritableScope split.
 //
 // Out of scope: SQL serialisation (src/sql/serialise.ts); association
-// accessors merged onto SingleRow values by defineSchema (added in
-// steps 3 and 4 of the v1.11 plan).
+// accessors merged onto SingleRow values by defineSchema.
 
 import { deleteNode } from "../ast/delete.js";
 import type { ExpressionNode } from "../ast/expression.js";
@@ -33,9 +34,11 @@ import type { UpdatableAttrs } from "./types.js";
 import { Update } from "./Update.js";
 
 /**
- * A query that returns 0 or 1 rows when run. `db.run(singleRow)`
- * resolves to `RowOf<Columns> | null`. Use `.orThrow()` for the
- * non-null variant.
+ * A query that returns exactly one row when run. `db.run(singleRow)`
+ * resolves to `RowOf<Columns>` and rejects with `RowNotFoundError`
+ * when the underlying SQL returns zero rows. Built by
+ * `Table.find(id)` and by belongs-to accessors merged on by
+ * `defineSchema`.
  */
 export class SingleRow<Columns extends ColumnsShape> {
   // Phantoms: never read at runtime. `_kind` discriminates SingleRow
@@ -47,28 +50,20 @@ export class SingleRow<Columns extends ColumnsShape> {
   declare readonly _columns: Columns;
 
   constructor(readonly node: RelationNode) {}
-
-  /**
-   * Promote this SingleRow to one that throws when no row is found.
-   * The returned value is a different class so `Database.run` can
-   * dispatch by `instanceof`; the wrapped node is unchanged.
-   */
-  orThrow(): SingleRowOrThrow<Columns> {
-    return new SingleRowOrThrow<Columns>(this.node);
-  }
 }
 
 /**
- * A SingleRow that also knows how to build a DELETE for itself. The
- * concrete class returned by `Table.find(id)`. `Database.run` matches
- * via the SingleRow overload (subclass relation), so the SELECT path
- * is unchanged; the extra surface is just `.delete()` returning a
- * Delete that targets the same row by its primary-key predicate.
+ * A SingleRow that also knows how to build a DELETE or UPDATE for
+ * itself. The concrete class returned by `Table.find(id)`.
+ * `Database.run` matches via the SingleRow overload (subclass
+ * relation), so the SELECT path is unchanged; the extra surface is
+ * `.delete()` and `.update(attrs)`, both targeting the same row by
+ * its primary-key predicate.
  *
  * The `LIMIT 1` baked into the wrapped RelationNode is dropped at
- * DELETE time — Postgres doesn't support `DELETE ... LIMIT`, and the
- * primary-key predicate already restricts the statement to at most
- * one row.
+ * DELETE/UPDATE time — Postgres doesn't support `DELETE ... LIMIT` or
+ * `UPDATE ... LIMIT`, and the primary-key predicate already restricts
+ * the statement to at most one row.
  */
 export class WritableSingleRow<
   Columns extends ColumnsShape,
@@ -118,25 +113,13 @@ export class WritableSingleRow<
 }
 
 /**
- * A query that returns exactly one row when run. `db.run(singleRow)`
- * resolves to `RowOf<Columns>` and rejects with a `RowNotFoundError`
- * when the underlying SQL returns no rows.
- */
-export class SingleRowOrThrow<Columns extends ColumnsShape> {
-  declare readonly _kind: "SingleRowOrThrow";
-  declare readonly _columns: Columns;
-
-  constructor(readonly node: RelationNode) {}
-}
-
-/**
- * Thrown by `db.run(singleRow.orThrow())` when the underlying query
- * returns zero rows. Tenon's other "not found" paths (`SingleRow` on
- * its own) return `null` instead; this error exists for callers who
- * want a control-flow exception at the call site.
+ * Thrown by `db.run(singleRow)` when the underlying query returns
+ * zero rows. SingleRow is the throwing-by-default surface — there is
+ * no nullable variant. Callers who want to tolerate a missing row
+ * should query via `.where(...)` and inspect the array.
  */
 export class RowNotFoundError extends Error {
-  constructor(message = "tenon: no row found for SingleRow.orThrow()") {
+  constructor(message = "tenon: no row found for SingleRow query") {
     super(message);
     this.name = "RowNotFoundError";
   }

@@ -1,14 +1,12 @@
-// Type-level tests for Table.find and the SingleRow / SingleRowOrThrow
-// surface threaded through Database.run.
+// Type-level tests for Table.find and the SingleRow surface threaded
+// through Database.run. SingleRow throws on miss; there is no nullable
+// PK lookup.
 
 import { expectTypeOf, test } from "vitest";
 
 import type { Database } from "../../src/executor/Database.js";
 import type { Delete } from "../../src/query/Delete.js";
-import type {
-  WritableSingleRow,
-  SingleRowOrThrow,
-} from "../../src/query/SingleRow.js";
+import type { WritableSingleRow } from "../../src/query/SingleRow.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
 
@@ -85,20 +83,13 @@ test("find is absent on tables with a composite primary key", () => {
   void tenantUsersComposite.find;
 });
 
-test("orThrow promotes SingleRow to SingleRowOrThrow", () => {
-  expectTypeOf(users.find(1).orThrow()).toEqualTypeOf<
-    SingleRowOrThrow<UsersColumns>
-  >();
+test("orThrow has been removed; find throws by default", () => {
+  // @ts-expect-error orThrow was removed; find now throws on miss
+  void users.find(1).orThrow;
 });
 
-test("db.run on a SingleRow resolves to RowOf<C> | null", () => {
+test("db.run on a SingleRow resolves to RowOf<C>", () => {
   expectTypeOf(database.run(users.find(1))).toEqualTypeOf<
-    Promise<{ id: number; email: string } | null>
-  >();
-});
-
-test("db.run on a SingleRowOrThrow resolves to RowOf<C>", () => {
-  expectTypeOf(database.run(users.find(1).orThrow())).toEqualTypeOf<
     Promise<{ id: number; email: string }>
   >();
 });
@@ -113,11 +104,6 @@ test("db.run on find().delete() resolves to a rowCount summary", () => {
   expectTypeOf(database.run(users.find(1).delete())).toEqualTypeOf<
     Promise<{ readonly rowCount: number }>
   >();
-});
-
-test("delete is absent on the orThrow form", () => {
-  // @ts-expect-error orThrow is read-only; no delete on this branch
-  void users.find(1).orThrow().delete;
 });
 
 test("delete is absent on tables without a single-column primary key", () => {

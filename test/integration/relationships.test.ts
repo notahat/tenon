@@ -33,7 +33,7 @@ const textColumn = columnType<string, "text">({
 });
 
 describe("FK accessors end-to-end", () => {
-  it("Table.find returns the matching row and null when missing", async () => {
+  it("Table.find returns the matching row and throws RowNotFoundError when missing", async () => {
     await withTestSchema("tenon_find", async (schema) => {
       const client = await sharedPool.connect();
       try {
@@ -65,8 +65,9 @@ describe("FK accessors end-to-end", () => {
       const db = new Database(sharedPool);
       const found = await db.run(users.find(1));
       expect(found).toEqual({ id: 1, email: "a@example.com" });
-      const missing = await db.run(users.find(999));
-      expect(missing).toBeNull();
+      await expect(db.run(users.find(999))).rejects.toBeInstanceOf(
+        RowNotFoundError,
+      );
     });
   });
 
@@ -103,45 +104,15 @@ describe("FK accessors end-to-end", () => {
       const deleted = await db.run(users.find(1).delete());
       expect(deleted).toEqual({ rowCount: 1 });
 
-      const remaining = await db.run(users.find(1));
-      expect(remaining).toBeNull();
+      await expect(db.run(users.find(1))).rejects.toBeInstanceOf(
+        RowNotFoundError,
+      );
 
       const stillThere = await db.run(users.find(2));
       expect(stillThere).toEqual({ id: 2, email: "b@example.com" });
 
       const missing = await db.run(users.find(999).delete());
       expect(missing).toEqual({ rowCount: 0 });
-    });
-  });
-
-  it("orThrow rejects with RowNotFoundError when no row matches", async () => {
-    await withTestSchema("tenon_or_throw", async (schema) => {
-      const client = await sharedPool.connect();
-      try {
-        await client.query(
-          `CREATE TABLE "${schema}"."users" (
-             id integer PRIMARY KEY,
-             email text NOT NULL
-           )`,
-        );
-      } finally {
-        client.release();
-      }
-
-      const { users } = defineSchema({
-        users: defineTable(
-          schema,
-          "users",
-          { id: idColumn, email: textColumn },
-          [],
-          { columns: ["id"] },
-        ),
-      });
-
-      const db = new Database(sharedPool);
-      await expect(db.run(users.find(1).orThrow())).rejects.toBeInstanceOf(
-        RowNotFoundError,
-      );
     });
   });
 
@@ -349,7 +320,7 @@ describe("FK accessors end-to-end", () => {
     });
   });
 
-  it("nullable belongs-to returns null when the FK column is NULL", async () => {
+  it("nullable belongs-to throws RowNotFoundError when the FK column is NULL", async () => {
     await withTestSchema("tenon_nullable_belongs_to", async (schema) => {
       const client = await sharedPool.connect();
       try {
@@ -401,11 +372,12 @@ describe("FK accessors end-to-end", () => {
 
       const db = new Database(sharedPool);
       // The inner join filters out the NULL FK row, so no users row
-      // matches and `db.run` resolves to null — exactly what the
-      // SingleRow nullable-by-default contract promises. Nullability
-      // surfaces through "no row found" rather than a special path.
-      const author = await db.run(posts.find(10).author);
-      expect(author).toBeNull();
+      // matches. SingleRow throws on miss — callers with nullable FKs
+      // must check the scalar (`post.author_id`) themselves before
+      // walking the accessor.
+      await expect(db.run(posts.find(10).author)).rejects.toBeInstanceOf(
+        RowNotFoundError,
+      );
     });
   });
 
@@ -458,9 +430,11 @@ describe("FK accessors end-to-end", () => {
         manager_id: null,
         name: "Alice",
       });
-      // Top-of-tree employee has no manager — null FK.
-      const alicesManager = await db.run(employees.find(1).manager);
-      expect(alicesManager).toBeNull();
+      // Top-of-tree employee has no manager — null FK, so the
+      // belongs-to walk throws.
+      await expect(db.run(employees.find(1).manager)).rejects.toBeInstanceOf(
+        RowNotFoundError,
+      );
     });
   });
 });

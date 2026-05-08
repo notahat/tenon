@@ -22,7 +22,6 @@ export {
   WritableSingleRow,
   RowNotFoundError,
   SingleRow,
-  SingleRowOrThrow,
 } from "./query/SingleRow.js";
 export { scope } from "./query/scope.js";
 export type { Scope } from "./query/scope.js";

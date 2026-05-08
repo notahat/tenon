@@ -15,11 +15,7 @@ import type { Pool, PoolClient } from "pg";
 import { Delete } from "../query/Delete.js";
 import { Insert } from "../query/Insert.js";
 import type { Relation } from "../query/Relation.js";
-import {
-  RowNotFoundError,
-  SingleRow,
-  SingleRowOrThrow,
-} from "../query/SingleRow.js";
+import { RowNotFoundError, SingleRow } from "../query/SingleRow.js";
 import type {
   ForeignKeyTuple,
   RowOf,
@@ -82,13 +78,9 @@ export class Database {
     client?: PoolClient,
   ): Promise<{ readonly rowCount: number }>;
   run<Columns extends ColumnsShape>(
-    statement: SingleRowOrThrow<Columns>,
-    client?: PoolClient,
-  ): Promise<RowOf<Columns>>;
-  run<Columns extends ColumnsShape>(
     statement: SingleRow<Columns>,
     client?: PoolClient,
-  ): Promise<RowOf<Columns> | null>;
+  ): Promise<RowOf<Columns>>;
   run<Columns extends ColumnsShape, FKs extends ForeignKeyTuple = readonly []>(
     statement: Relation<Columns, FKs> & {
       readonly _columns: UnbrandedColumns;
@@ -101,8 +93,7 @@ export class Database {
       | Insert<ColumnsShape, ColumnsShape | null>
       | Update<ColumnsShape, ColumnsShape | null>
       | Delete<ColumnsShape, ColumnsShape | null>
-      | SingleRow<ColumnsShape>
-      | SingleRowOrThrow<ColumnsShape>,
+      | SingleRow<ColumnsShape>,
     client?: PoolClient,
   ): Promise<unknown> {
     const runner: QueryRunner = client ?? this.pool;
@@ -130,7 +121,7 @@ export class Database {
       }
       return result.rows;
     }
-    if (statement instanceof SingleRowOrThrow) {
+    if (statement instanceof SingleRow) {
       const compiled = relationToSql(statement.node);
       const result = await runner.query(compiled.text, [...compiled.params]);
       const first = result.rows[0];
@@ -138,11 +129,6 @@ export class Database {
         throw new RowNotFoundError();
       }
       return first;
-    }
-    if (statement instanceof SingleRow) {
-      const compiled = relationToSql(statement.node);
-      const result = await runner.query(compiled.text, [...compiled.params]);
-      return result.rows[0] ?? null;
     }
     const compiled = relationToSql(statement.node);
     const result = await runner.query(compiled.text, [...compiled.params]);

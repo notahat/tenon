@@ -9,7 +9,6 @@ import {
   WritableSingleRow,
   RowNotFoundError,
   SingleRow,
-  SingleRowOrThrow,
 } from "../../src/query/SingleRow.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
@@ -57,15 +56,6 @@ describe("Table.find", () => {
       `SELECT * FROM "public"."users" AS "u" WHERE ("u"."id" = $1) LIMIT 1`,
     );
     expect(compiled.params).toEqual([7]);
-  });
-});
-
-describe("SingleRow.orThrow", () => {
-  it("returns a SingleRowOrThrow that wraps the same node", () => {
-    const single = users.find(1);
-    const throwing = single.orThrow();
-    expect(throwing).toBeInstanceOf(SingleRowOrThrow);
-    expect(throwing.node).toBe(single.node);
   });
 });
 

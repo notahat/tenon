@@ -135,8 +135,3 @@ test("update is not exposed on Table directly", () => {
   // @ts-expect-error .update lives on WritableScope / WritableSingleRow only
   users.update({ name: "x" });
 });
-
-test("update is absent on the orThrow form", () => {
-  // @ts-expect-error orThrow is read-only; no update on this branch
-  void users.find(1).orThrow().update;
-});

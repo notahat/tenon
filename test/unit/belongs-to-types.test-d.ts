@@ -62,16 +62,15 @@ test("the child's find result exposes a belongs-to accessor named by stripping _
   >();
 });
 
-test("db.run on the belongs-to accessor resolves to RowOf<C> | null", () => {
+test("db.run on the belongs-to accessor resolves to RowOf<C>", () => {
   expectTypeOf(database.run(schema.posts.find(1).author)).toEqualTypeOf<
-    Promise<{ id: number; email: string } | null>
+    Promise<{ id: number; email: string }>
   >();
 });
 
-test("orThrow on the belongs-to accessor narrows away the null", () => {
-  expectTypeOf(
-    database.run(schema.posts.find(1).author.orThrow()),
-  ).toEqualTypeOf<Promise<{ id: number; email: string }>>();
+test("the belongs-to accessor has no .orThrow (find throws by default)", () => {
+  // @ts-expect-error orThrow was removed; SingleRow now throws on miss
+  void schema.posts.find(1).author.orThrow;
 });
 
 test("the belongs-to accessor is absent on the parent side", () => {

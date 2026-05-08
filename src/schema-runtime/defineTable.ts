@@ -44,10 +44,11 @@ type FindMethod<Columns extends ColumnsShape, PK extends PrimaryKey> =
       ? {
           /**
            * Look up a row by its primary key. Returns a
-           * WritableSingleRow that runs to `RowOf<Columns> | null`,
-           * `RowOf<Columns>` after `.orThrow()`, or builds a DELETE on
-           * the same primary-key predicate via `.delete()`. Available
-           * only on tables with a single-column primary key.
+           * WritableSingleRow that runs to `RowOf<Columns>`, throwing
+           * `RowNotFoundError` if no row matches; chain `.delete()` or
+           * `.update(attrs)` to build a write on the same primary-key
+           * predicate. Available only on tables with a single-column
+           * primary key.
            */
           find(id: Columns[Col]["_tsType"]): WritableSingleRow<Columns>;
         }
