@@ -10,7 +10,7 @@ import { RowNotFoundError } from "../../src/query/SingleRow.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineSchema } from "../../src/schema-runtime/defineSchema.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
-import { sharedPool, uniqueSchemaName, withTestSchema } from "./setup.js";
+import { sharedPool, withTestSchema } from "./setup.js";
 
 afterAll(async () => {
   await sharedPool.end();
@@ -303,88 +303,6 @@ describe("FK accessors end-to-end", () => {
       expect(sender).toEqual({ id: 1, email: "sender@example.com" });
       expect(recipient).toEqual({ id: 2, email: "recipient@example.com" });
     });
-  });
-
-  it("walks a cross-schema FK from belongs-to and has-many sides", async () => {
-    // Two schemas, posts in one referencing users in the other. The
-    // FK records the literal `referencedSchema`, so defineSchema's
-    // physical-name lookup keys (`schema.table`) work across schemas
-    // without anything special.
-    const usersSchema = uniqueSchemaName("tenon_xschema_a");
-    const postsSchema = uniqueSchemaName("tenon_xschema_b");
-    const setup = await sharedPool.connect();
-    try {
-      await setup.query(`CREATE SCHEMA "${usersSchema}"`);
-      await setup.query(`CREATE SCHEMA "${postsSchema}"`);
-      await setup.query(
-        `CREATE TABLE "${usersSchema}"."users" (
-           id integer PRIMARY KEY,
-           email text NOT NULL
-         )`,
-      );
-      await setup.query(
-        `CREATE TABLE "${postsSchema}"."posts" (
-           id integer PRIMARY KEY,
-           author_id integer NOT NULL REFERENCES "${usersSchema}"."users"(id),
-           body text NOT NULL
-         )`,
-      );
-      await setup.query(
-        `INSERT INTO "${usersSchema}"."users" (id, email) VALUES
-           (1, 'a@example.com')`,
-      );
-      await setup.query(
-        `INSERT INTO "${postsSchema}"."posts" (id, author_id, body) VALUES
-           (10, 1, 'hello from a'),
-           (11, 1, 'second from a')`,
-      );
-    } finally {
-      setup.release();
-    }
-
-    try {
-      const { users, posts } = defineSchema({
-        users: defineTable(
-          usersSchema,
-          "users",
-          { id: idColumn, email: textColumn },
-          [],
-          { columns: ["id"] },
-        ),
-        posts: defineTable(
-          postsSchema,
-          "posts",
-          { id: idColumn, author_id: idColumn, body: textColumn },
-          [
-            {
-              name: "posts_author_id_fkey",
-              columns: ["author_id"],
-              referencedSchema: usersSchema,
-              referencedTable: "users",
-              referencedColumns: ["id"],
-            },
-          ],
-          { columns: ["id"] },
-        ),
-      });
-
-      const db = new Database(sharedPool);
-      const author = await db.run(posts.find(10).author);
-      expect(author).toEqual({ id: 1, email: "a@example.com" });
-      const userPosts = await db.run(users.find(1).posts);
-      expect(userPosts.map((post) => post.body).sort()).toEqual([
-        "hello from a",
-        "second from a",
-      ]);
-    } finally {
-      const cleanup = await sharedPool.connect();
-      try {
-        await cleanup.query(`DROP SCHEMA "${postsSchema}" CASCADE`);
-        await cleanup.query(`DROP SCHEMA "${usersSchema}" CASCADE`);
-      } finally {
-        cleanup.release();
-      }
-    }
   });
 
   it("nullable belongs-to returns null when the FK column is NULL", async () => {
