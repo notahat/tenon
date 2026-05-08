@@ -8,8 +8,8 @@ How tenon is built, top to bottom.
 tenon-generate (CLI, src/introspect/)
         |
         v
-generated schema file (src/schema-runtime/)
-        |
+generated schema file (calls defineTable + defineSchema)
+        |  defineSchema wires FK accessors into each Table.find
         v
 fluent classes (src/query/)
         |  build AST
@@ -33,8 +33,9 @@ the next layer's input; nothing reaches back upstream.
 The four bottom layers — `ast/`, `query/`, `sql/`, the
 `schema-runtime/` helpers — are **pure**. They build immutable
 data structures, never touch the network, never read time, and
-never mutate. You can hold on to AST nodes, compile them with
-`relationToSql(...)` directly, snapshot them in tests.
+(with one documented exception) never mutate. You can hold on to
+AST nodes, compile them with `relationToSql(...)` directly,
+snapshot them in tests.
 
 Side effects live in **two places only**:
 
@@ -48,20 +49,43 @@ keeps logic testable without infrastructure (the bulk of the
 test suite is unit tests against pure functions) and makes the
 small imperative perimeter easy to audit.
 
+### The `defineSchema` exception
+
+`defineSchema` is the one place schema-runtime breaks the
+"never mutate" rule: it replaces each input Table's `find`
+method in place, so every `find(id)` call returns a SingleRow
+with the table's FK association accessors merged in. The
+alternative — returning a fresh record of new Table objects —
+would break referential identity (the `posts` you pass in
+would no longer be `===` the `posts` you read out), which makes
+hand-written schemas awkward and forces every Table comparison
+to go through a wrapper. The mutation is bounded to one method
+on each table, doesn't touch any other state, and runs once at
+schema-load time.
+
 ## Where types live versus where logic lives
 
 tenon's compile-time guarantees come from a few thick type files:
 
 - `src/schema-runtime/columnType.ts` — the column-shape carriers.
+- `src/schema-runtime/foreignKey.ts`,
+  `src/schema-runtime/primaryKey.ts` — the FK / PK metadata
+  shapes used by accessor inference.
 - `src/query/types.ts` — `RowOf`, `MergedColumns`,
   `InsertableAttrs`, `ProjectedShape`, `ComparableTo`,
-  `DuplicateColumnNames`.
+  `DuplicateColumnNames`, plus the FK-inference machinery
+  (`MergedColumnsWithFkBrand`) and the FK-accessor map
+  (`HasManyAccessors`, `BelongsToAccessors`, `WiredSingleRow`).
+- `src/schema-runtime/defineSchema.ts` — `WiredSchema<S>`,
+  `WiredTable<T, S>`. These describe the runtime mutation
+  `defineSchema` performs, so the wired `find` shows up in the
+  user's Table type with its associations attached.
 
-Almost no runtime logic lives here. The fluent classes
-(`Relation`, `Insert`, `Delete`, `DeletableScope`) carry **phantom**
-type parameters that thread these types through operator chains;
-they don't enforce them at runtime. The `declare readonly _xxx`
-fields are erased at compile time.
+Almost no runtime logic lives in these files. The fluent classes
+(`Relation`, `Insert`, `Delete`, `DeletableScope`, `SingleRow`)
+carry **phantom** type parameters that thread these types through
+operator chains; they don't enforce them at runtime. The `declare
+readonly _xxx` fields are erased at compile time.
 
 This split means:
 

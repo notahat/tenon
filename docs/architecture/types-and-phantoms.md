@@ -6,21 +6,30 @@ pipeline.
 
 ## Where the types live
 
-Two thick files plus a sprinkle:
+Three thick files plus a sprinkle:
 
 - **`src/schema-runtime/columnType.ts`** — `ColumnType`,
   `ColumnsShape`, the `columnType<TS, SQL>(...)` overload set.
+- **`src/schema-runtime/foreignKey.ts`,
+  `src/schema-runtime/primaryKey.ts`** — the FK and PK metadata
+  shapes, threaded into the Table type and read by accessor
+  inference.
 - **`src/query/types.ts`** — `RowOf`, `MergedColumns`,
   `InsertableAttrs`, `ProjectedShape`, `ComparableTo`,
   `DuplicateColumnNames`, `Prettify`, `ItemOutputName`,
-  `ItemColumnType`, plus the FK-inference machinery
+  `ItemColumnType`, the FK-inference machinery
   (`ForeignKeyTuple`, `MergedForeignKeys`, `IsSamePhysicalTable`,
   `SelfJoinBrand`, `MissingFkBrand`, `AmbiguousFkBrand`,
-  `MergedColumnsWithFkBrand`).
+  `MergedColumnsWithFkBrand`), and the FK-accessor association
+  map (`TableShape`, `HasManyAccessors`, `BelongsToAccessors`,
+  `AccessorsFor`, `WiredSingleRow`, `AmbiguousHasManyBrand`).
+- **`src/schema-runtime/defineSchema.ts`** — `WiredSchema<S>`
+  and `WiredTable<T, S>`, which describe the runtime mutation
+  defineSchema performs on each input Table.
 - **Per-class phantoms** — declared inline in `Relation`,
-  `Insert`, `Delete`, `DeletableScope`, `Column`,
-  `AliasedColumn`, `Expression`, `JoinBuilder`. See
-  [fluent-layer.md](fluent-layer.md).
+  `Insert`, `Delete`, `DeletableScope`, `SingleRow`,
+  `SingleRowOrThrow`, `Column`, `AliasedColumn`, `Expression`,
+  `JoinBuilder`. See [fluent-layer.md](fluent-layer.md).
 
 ## `ColumnType<TsType, SqlTag, Nullable, HasDefault, IsGenerated>`
 
@@ -174,6 +183,111 @@ Calling `.on(predicate)` on the JoinBuilder returns plain
 `Relation<MergedColumns<L, R>, MergedForeignKeys<LFKs, RFKs>>` —
 no brand — so an explicit predicate clears any inference error.
 
+## FK-accessor association map
+
+The same FK metadata that drives implicit-ON inference also
+drives the accessor map merged onto SingleRows by
+`defineSchema`. The walk happens at the type level so users see
+the right shape at the call site; the runtime mirror lives in
+`defineSchema`.
+
+`TableShape` is the structural extraction the type-level walk
+reads off each Table. The full Table type is wider — it carries
+column accessors, relation methods, and so on — but only these
+phantom fields drive accessor inference, so isolating them keeps
+the association-map machinery decoupled:
+
+```ts
+interface TableShape {
+  readonly _columns: ColumnsShape;
+  readonly _columnNames: readonly string[];
+  readonly _foreignKeys: ForeignKeyTuple;
+  readonly _primaryKey: PrimaryKey;
+  readonly _schema: string;
+  readonly _physicalName: string;
+}
+```
+
+`_columnNames` is the only field with a real runtime value (the
+runtime mirror in `defineSchema` reads it to detect accessor /
+column-name collisions); the rest are phantoms.
+
+### `HasManyAccessors<T, S>`
+
+```ts
+type HasManyAccessors<T, S> = {
+  [K in keyof S as HasManyAccessorKey<T, S[K]>]: HasManyAccessorValue<T, S[K]>;
+};
+```
+
+For each table `S[K]` in the schema bag, decide whether to
+contribute a has-many accessor to `T`'s SingleRow. The
+key-picker `HasManyAccessorKey` returns `never` (which removes
+the entry from the mapped type) in three cases:
+
+1. **Self-reference.** `S[K]` and `T` resolve to the same
+   physical (schema, name).
+2. **No matching FKs.** `FkMatches<S[K]["_foreignKeys"],
+   T["_schema"], T["_physicalName"]>['length']` is `0`.
+3. **Column-name shadow.** The accessor name (the child's
+   physical name) is already a column on `T`.
+
+Otherwise the key is the child's physical name and the value is
+`Relation<S[K]["_columns"], S[K]["_foreignKeys"]>`. When more
+than one FK on the child points at the parent, the columns
+shape is intersected with `AmbiguousHasManyBrand` instead — the
+brand rides inside the columns shape (not on the Relation
+itself) so `UnbrandedColumns` catches it at `db.run` time, the
+same way duplicate-column and self-join brands surface.
+
+### `BelongsToAccessors<T, S>`
+
+```ts
+type BelongsToAccessors<T, S> = {
+  [Index in keyof T["_foreignKeys"] as BelongsToAccessorKey<
+    T["_foreignKeys"][Index & number],
+    T["_columns"],
+    S
+  >]: BelongsToAccessorValue<T["_foreignKeys"][Index & number], S>;
+};
+```
+
+Iterates `T`'s outgoing FKs, looks up each FK's referenced
+table in `S` via `LookupTableByPhysical<S, RefSchema, RefName>`,
+and adds an accessor named by `StripIdSuffix<FkColumn,
+RefTable>` (drop a trailing `_id`, falling back to the
+referenced table's name verbatim). The key-picker filters out
+composite FKs, accessor-name collisions with `T`'s columns, and
+FKs whose target isn't in `S`.
+
+The accessor's value type is plain `SingleRow<Ref["_columns"]>`
+in v1 — not the recursive `WiredSingleRow<Ref, S>` — so chained
+walks like `comments.find(5).post.author` don't compile.
+Implementing chains needs a chained-join runtime where each
+accessor extends an existing query rather than starting a new
+one; that's a v1.12 follow-up.
+
+### `WiredSingleRow<T, S>` and the four `Wired*` types
+
+```ts
+type AccessorsFor<T, S> = HasManyAccessors<T, S> & BelongsToAccessors<T, S>;
+type WiredSingleRow<T, S> = SingleRow<T["_columns"]> & AccessorsFor<T, S>;
+```
+
+`WiredSingleRow` is what `Table.find(id)` returns once the
+table has been through `defineSchema`. The non-recursive
+restriction on belongs-to means follow-up `.author` calls can't
+resolve, but the top-level accessors (has-many and belongs-to
+from `find`) are fully wired.
+
+`WiredSchema<S>` and `WiredTable<T, S>` (from
+`src/schema-runtime/defineSchema.ts`) are the user-facing types
+on the wiring boundary. `WiredTable` strips the original `find`
+method off the input Table via `Omit` and re-adds it with the
+`WiredSingleRow` return type — direct intersection wouldn't
+narrow the return type because TypeScript would pick the more
+permissive of the two `find` signatures.
+
 ## `InsertableAttrs<Columns>`
 
 ```ts
@@ -291,3 +405,65 @@ attgenerated = ""`.
 
 Every step is type-level only. No bytes of the column metadata
 flow at runtime past the schema-runtime flags.
+
+## Worked example: `find` and an accessor
+
+A second walk, showing the FK-accessor map threading through
+`defineSchema` to a typed has-many call:
+
+1. **Generated file.** `tenon-generate` emits
+
+   ```ts
+   export const { posts, users } = defineSchema({
+     posts: defineTable("public", "posts", { ... }, [
+       {
+         name: "posts_author_id_fkey",
+         columns: ["author_id"],
+         referencedSchema: "public",
+         referencedTable: "users",
+         referencedColumns: ["id"],
+       },
+     ], { columns: ["id"] }),
+     users: defineTable("public", "users", { ... }, [], { columns: ["id"] }),
+   });
+   ```
+
+   Each `defineTable` returns a `Table<...>` carrying literal
+   `_schema`, `_physicalName`, `_foreignKeys`, `_primaryKey`
+   generics.
+
+2. **`defineSchema` rewrites the Table types.**
+   `WiredTable<T, S>` strips `find` from the input Table and
+   re-adds it with return type
+   `SingleRow<T["_columns"]> & AccessorsFor<T, S>`.
+
+3. **`AccessorsFor<users, S>`** computes
+   `HasManyAccessors<users, S> & BelongsToAccessors<users, S>`.
+   The has-many walk visits `S["posts"]`, finds an FK in
+   `posts._foreignKeys` whose `referencedSchema = "public"` and
+   `referencedTable = "users"`, derives the accessor name
+   `posts` (the child's physical name), and contributes
+   `{ posts: Relation<postsColumns, postsFKs> }`. The
+   belongs-to walk on `users` finds no outgoing FKs and
+   contributes the empty record.
+
+4. **`users.find(1)`** has return type
+   `SingleRow<usersColumns> & { posts: Relation<postsColumns, postsFKs> }`.
+
+5. **`users.find(1).posts`** is a `Relation<postsColumns,
+   postsFKs>`. At runtime, the accessor is a real Relation
+   wrapping
+   `Where(TableRef("posts"), posts.author_id = $1)` with `$1`
+   bound to `1` — a single-roundtrip SQL emit.
+
+6. **`db.run(users.find(1).posts)`** resolves to
+   `Array<{ id: number; author_id: number; ... }>`. The columns
+   shape carries no brand (one-FK match in step 3), so the
+   `Relation` overload on `Database.run` accepts it.
+
+The recursive case — `comments.find(5).post.author` — is
+explicitly out of scope: `BelongsToAccessorValue` returns plain
+`SingleRow<Ref["_columns"]>`, so the second `.author` access
+fails with "property does not exist". A future change makes
+that `WiredSingleRow<Ref, S>`, paired with a runtime that
+extends the join chain at each step.
