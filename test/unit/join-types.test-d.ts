@@ -63,8 +63,12 @@ test("innerJoin returns a JoinBuilder, not a Relation", () => {
     JoinBuilder<
       typeof users._columns,
       typeof users._foreignKeys,
+      typeof users._schema,
+      typeof users._physicalName,
       typeof posts._columns,
-      typeof posts._foreignKeys
+      typeof posts._foreignKeys,
+      typeof posts._schema,
+      typeof posts._physicalName
     >
   >();
 });

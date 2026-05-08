@@ -31,6 +31,7 @@ import { toProjectionItem } from "./projection.js";
 import type {
   ForeignKeyTuple,
   MergedColumns,
+  MergedColumnsWithFkBrand,
   MergedForeignKeys,
   ProjectableItem,
   ProjectedShape,
@@ -110,13 +111,13 @@ export class Relation<
       readonly _tableName: string;
       readonly _schema: string;
     },
-  ): JoinBuilder<Columns, FKs, RColumns, RFKs> {
+  ): JoinBuilder<Columns, FKs, string, string, RColumns, RFKs, string, string> {
     if (right.node.kind !== "TableRef") {
       throw new Error(
         "innerJoin's right side must be a defined table (got a derived relation).",
       );
     }
-    return new JoinBuilder<Columns, FKs, RColumns, RFKs>(this.node, right.node);
+    return new JoinBuilder(this.node, right.node);
   }
 }
 
@@ -137,15 +138,34 @@ export class Relation<
 export class JoinBuilder<
   Left extends ColumnsShape,
   LFKs extends ForeignKeyTuple,
+  LSchema extends string,
+  LPhysicalName extends string,
   Right extends ColumnsShape,
   RFKs extends ForeignKeyTuple,
-> extends Relation<MergedColumns<Left, Right>, MergedForeignKeys<LFKs, RFKs>> {
-  // Phantoms: never read at runtime; carry the two sides' shapes so
-  // commit 7 can compute the FK-inference brand from them.
+  RSchema extends string,
+  RPhysicalName extends string,
+> extends Relation<
+  MergedColumnsWithFkBrand<
+    Left,
+    Right,
+    LSchema,
+    LPhysicalName,
+    RSchema,
+    RPhysicalName
+  >,
+  MergedForeignKeys<LFKs, RFKs>
+> {
+  // Phantoms: never read at runtime; carry the two sides' shapes and
+  // identities so the merged-columns shape can compute the
+  // FK-inference brands (self-join here, missing/ambiguous in 7b).
   declare readonly _left: Left;
   declare readonly _leftFks: LFKs;
+  declare readonly _leftSchema: LSchema;
+  declare readonly _leftPhysicalName: LPhysicalName;
   declare readonly _right: Right;
   declare readonly _rightFks: RFKs;
+  declare readonly _rightSchema: RSchema;
+  declare readonly _rightPhysicalName: RPhysicalName;
 
   constructor(
     private readonly leftSource: RelationNode,
@@ -157,9 +177,9 @@ export class JoinBuilder<
   /**
    * Complete the inner join with an explicit boolean predicate.
    * Predicates may freely reference columns from either side. The
-   * returned Relation has the same merged-shape and merged-FK
-   * generics as the JoinBuilder, but with the predicate baked into
-   * the AST instead of left for FK inference.
+   * returned Relation has the plain merged-columns shape (no
+   * inference brand) because an explicit predicate clears every
+   * inference-error case.
    */
   on(
     predicate: Expression<boolean>,

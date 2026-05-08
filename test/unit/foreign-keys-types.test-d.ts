@@ -1,12 +1,15 @@
 // Type-level tests for the FKs generic threading through Relation,
-// Table, JoinBuilder, and DeletableScope. Behaviour-level tests for
-// the actual ON-clause inference live in their own files (commit 6+).
+// Table, JoinBuilder, and DeletableScope, and for the self-join
+// brand on JoinBuilder.
 
 import { expectTypeOf, test } from "vitest";
 
+import type { Database } from "../../src/executor/Database.js";
 import { columnType } from "../../src/schema-runtime/columnType.js";
 import { defineTable } from "../../src/schema-runtime/defineTable.js";
 import type { ForeignKey } from "../../src/schema-runtime/foreignKey.js";
+
+declare const db: Database;
 
 const users = defineTable("public", "users", {
   id: columnType<number, "int4">({
@@ -109,4 +112,37 @@ test("innerJoin's resulting Relation carries the merged FK union", () => {
 
 test("FKs default to readonly [] when not supplied at definition", () => {
   expectTypeOf(users._foreignKeys).toEqualTypeOf<readonly []>();
+});
+
+test("Table tracks the literal physical schema and name", () => {
+  expectTypeOf(users._schema).toEqualTypeOf<"public">();
+  expectTypeOf(users._physicalName).toEqualTypeOf<"users">();
+});
+
+test("Table.as preserves the physical schema and name", () => {
+  const aliased = users.as("u");
+  expectTypeOf(aliased._schema).toEqualTypeOf<"public">();
+  expectTypeOf(aliased._physicalName).toEqualTypeOf<"users">();
+  expectTypeOf(aliased._tableName).toEqualTypeOf<"u">();
+});
+
+test("a top-level self-join brands the merged shape", () => {
+  const join = users.innerJoin(users);
+  // @ts-expect-error self-join brand surfaces at db.run
+  void db.run(join);
+});
+
+test("a self-join via aliases on the same physical table is also branded", () => {
+  const left = users.as("u");
+  const right = users.as("v");
+  const join = left.innerJoin(right);
+  // @ts-expect-error self-join brand surfaces at db.run
+  void db.run(join);
+});
+
+test(".on() clears the self-join brand", () => {
+  const left = users.as("u");
+  const right = users.as("v");
+  const ok = left.innerJoin(right).on(left.id.eq(right.id)).project(left.id);
+  void db.run(ok);
 });

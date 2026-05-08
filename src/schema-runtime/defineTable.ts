@@ -18,25 +18,29 @@ import { Delete } from "../query/Delete.js";
 import { DeletableScope } from "../query/DeletableScope.js";
 import type { Expression } from "../query/Expression.js";
 import { Insert } from "../query/Insert.js";
-import { Relation } from "../query/Relation.js";
+import { JoinBuilder, Relation } from "../query/Relation.js";
 import type { ForeignKeyTuple, InsertableAttrs } from "../query/types.js";
 import type { ColumnType, ColumnsShape } from "./columnType.js";
 
 /**
  * The shape of a defined table: a Relation with column accessors
  * merged in. The `Alias` parameter is the qualifier used in column
- * references and (when not equal to the physical name) in
- * `FROM ... AS ...`. After `defineTable` it equals the table name;
- * after `.as("u")` it carries the user-supplied alias.
+ * references; `Schema` and `PhysicalName` carry the table's literal
+ * physical identity (preserved across `.as("alias")`) so the
+ * type-level join-inference checks can detect self-joins by
+ * comparing `(Schema, PhysicalName)` pairs.
  */
 export type Table<
   Alias extends string,
   Columns extends ColumnsShape,
   FKs extends ForeignKeyTuple = readonly [],
-> = Omit<Relation<Columns, FKs>, "where"> &
+  Schema extends string = string,
+  PhysicalName extends string = string,
+> = Omit<Relation<Columns, FKs>, "where" | "innerJoin"> &
   Readonly<{
     _tableName: Alias;
-    _schema: string;
+    _schema: Schema;
+    _physicalName: PhysicalName;
     _foreignKeys: FKs;
   }> & {
     readonly [Name in keyof Columns & string]: Column<
@@ -52,7 +56,39 @@ export type Table<
      * one query (self-joins, plus column-name disambiguation). FK
      * metadata is preserved because FKs reference physical names.
      */
-    as<NewAlias extends string>(alias: NewAlias): Table<NewAlias, Columns, FKs>;
+    as<NewAlias extends string>(
+      alias: NewAlias,
+    ): Table<NewAlias, Columns, FKs, Schema, PhysicalName>;
+    /**
+     * Inner-join this table with another defined table. Captures the
+     * literal physical (schema, name) of both sides so the resulting
+     * JoinBuilder's merged-columns shape carries a self-join brand
+     * when both sides are the same physical table. Override of
+     * `Relation.innerJoin`; the loose Relation form (used when the
+     * left side is a chained relation, not a Table) keeps the loose
+     * generics that disable the brand.
+     */
+    innerJoin<
+      RColumns extends ColumnsShape,
+      RFKs extends ForeignKeyTuple = readonly [],
+      RSchema extends string = string,
+      RPhysicalName extends string = string,
+    >(
+      right: Relation<RColumns, RFKs> & {
+        readonly _tableName: string;
+        readonly _schema: RSchema;
+        readonly _physicalName: RPhysicalName;
+      },
+    ): JoinBuilder<
+      Columns,
+      FKs,
+      Schema,
+      PhysicalName,
+      RColumns,
+      RFKs,
+      RSchema,
+      RPhysicalName
+    >;
     /**
      * Build an INSERT against this table. Required keys (NOT NULL, no
      * DEFAULT, not generated) must be supplied; nullable keys and keys
@@ -93,18 +129,21 @@ export type Table<
  */
 export function defineTable<
   TableName extends string,
+  Schema extends string,
   Columns extends ColumnsShape,
   const FKs extends ForeignKeyTuple = readonly [],
 >(
-  schema: string,
+  schema: Schema,
   name: TableName,
   columns: Columns,
   foreignKeys: FKs = [] as unknown as FKs,
-): Table<TableName, Columns, FKs> {
+): Table<TableName, Columns, FKs, Schema, TableName> {
   return buildTable(schema, name, name, columns, foreignKeys) as Table<
     TableName,
     Columns,
-    FKs
+    FKs,
+    Schema,
+    TableName
   >;
 }
 
@@ -117,17 +156,19 @@ export function defineTable<
  */
 function buildTable<
   Alias extends string,
+  Schema extends string,
+  PhysicalName extends string,
   Columns extends ColumnsShape,
   FKs extends ForeignKeyTuple,
 >(
-  schema: string,
-  name: string,
+  schema: Schema,
+  name: PhysicalName,
   alias: Alias,
   columns: Columns,
   foreignKeys: FKs,
-): Table<Alias, Columns, FKs> {
+): Table<Alias, Columns, FKs, Schema, PhysicalName> {
   const node =
-    alias === name
+    (alias as string) === (name as string)
       ? tableRef({ schema, name, foreignKeys })
       : tableRef({ schema, name, alias, foreignKeys });
   const relation = new Relation<Columns, FKs>(node);
@@ -145,11 +186,35 @@ function buildTable<
   Object.assign(relation, accessors, {
     _tableName: alias,
     _schema: schema,
+    _physicalName: name,
     _foreignKeys: foreignKeys,
     as<NewAlias extends string>(
       newAlias: NewAlias,
-    ): Table<NewAlias, Columns, FKs> {
+    ): Table<NewAlias, Columns, FKs, Schema, PhysicalName> {
       return buildTable(schema, name, newAlias, columns, foreignKeys);
+    },
+    innerJoin<RColumns extends ColumnsShape, RFKs extends ForeignKeyTuple>(
+      right: Relation<RColumns, RFKs> & {
+        readonly _tableName: string;
+        readonly _schema: string;
+        readonly _physicalName: string;
+      },
+    ): JoinBuilder<
+      Columns,
+      FKs,
+      Schema,
+      PhysicalName,
+      RColumns,
+      RFKs,
+      string,
+      string
+    > {
+      if (right.node.kind !== "TableRef") {
+        throw new Error(
+          "innerJoin's right side must be a defined table (got a derived relation).",
+        );
+      }
+      return new JoinBuilder(node, right.node);
     },
     insert(attrs: InsertableAttrs<Columns>): Insert<Columns, null> {
       const columnValues = Object.entries(attrs as Record<string, unknown>).map(
@@ -177,5 +242,5 @@ function buildTable<
       );
     },
   });
-  return relation as Table<Alias, Columns, FKs>;
+  return relation as Table<Alias, Columns, FKs, Schema, PhysicalName>;
 }

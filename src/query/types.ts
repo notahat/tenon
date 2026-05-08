@@ -120,6 +120,69 @@ export type MergedForeignKeys<
   R extends ForeignKeyTuple,
 > = readonly [...L, ...R];
 
+/**
+ * True when `LSchema.LName` and `RSchema.RName` resolve to the same
+ * literal physical (schema, name) pair. Used by the self-join brand
+ * to surface "you joined the same physical table on both sides
+ * without an explicit `.on(...)` predicate" at db.run time.
+ *
+ * When any of the four parameters is the wide `string` type (i.e.
+ * the receiver wasn't a Table), the check yields false — the brand
+ * only fires when we have literal types on both sides.
+ */
+export type IsSamePhysicalTable<
+  LSchema extends string,
+  LName extends string,
+  RSchema extends string,
+  RName extends string,
+> = string extends LSchema
+  ? false
+  : string extends LName
+    ? false
+    : string extends RSchema
+      ? false
+      : string extends RName
+        ? false
+        : LSchema extends RSchema
+          ? RSchema extends LSchema
+            ? LName extends RName
+              ? RName extends LName
+                ? true
+                : false
+              : false
+            : false
+          : false;
+
+/**
+ * Brand intersected onto a JoinBuilder's merged-columns shape when
+ * the two sides resolve to the same physical table. The literal
+ * template puts the offending qualified name into the error message
+ * so users see `tenon: cannot infer ON predicate for self-join on
+ * public.users; ...` at the `db.run(...)` call site.
+ */
+export type SelfJoinBrand<Schema extends string, Name extends string> = {
+  readonly __tenonInferenceSelfJoin: `tenon: cannot infer ON predicate for self-join on ${Schema}.${Name}; call .on(...) explicitly or alias one side`;
+};
+
+/**
+ * Compute the merged-columns shape for a JoinBuilder, intersected
+ * with a self-join brand if the two sides match physically. The
+ * brand surfaces at `db.run(...)` exactly like the duplicate-column
+ * brand. Calling `.on(predicate)` returns plain `MergedColumns`
+ * (no brand) so an explicit predicate clears the error.
+ */
+export type MergedColumnsWithFkBrand<
+  L extends ColumnsShape,
+  R extends ColumnsShape,
+  LSchema extends string,
+  LName extends string,
+  RSchema extends string,
+  RName extends string,
+> =
+  IsSamePhysicalTable<LSchema, LName, RSchema, RName> extends true
+    ? MergedColumns<L, R> & SelfJoinBrand<LSchema, LName>
+    : MergedColumns<L, R>;
+
 /** The set of column names shared between two columns shapes. */
 export type DuplicateColumnNames<L, R> = Extract<keyof L & keyof R, string>;
 
