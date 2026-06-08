@@ -1,6 +1,7 @@
 # Name Options
 
 I'm considering a rename. Contenders:
+
 - Trel — references Arel, nice and short
 - Relate - references relational algebra
 - Tenon - implication of things fitting together precisely, referencing using TS for precisely fitting SQL

@@ -17,7 +17,7 @@ Everything starts from one type, `ColumnType`, which records five things
 about a column:
 
 ```ts
-ColumnType<TsType, SqlTag, Nullable, HasDefault, IsGenerated>
+ColumnType<TsType, SqlTag, Nullable, HasDefault, IsGenerated>;
 ```
 
 `TsType` (the type you read the column as) and `SqlTag` (its Postgres
@@ -99,13 +99,13 @@ shape carries a brand, it fails to satisfy the constraint, and
 TypeScript surfaces the brand's literal-template message right at the
 `db.run` call. There are five brand fields, one per error:
 
-| Brand field | Raised when |
-| --- | --- |
-| `__tenonDuplicateColumns` | A join's two sides share a column name |
-| `__tenonInferenceSelfJoin` | An inferred join is a self-join |
-| `__tenonInferenceMissing` | No foreign key connects the join's sides |
-| `__tenonInferenceAmbiguous` | More than one foreign key connects them |
-| `__tenonAmbiguousHasMany` | Two FKs on a child point at the parent |
+| Brand field                 | Raised when                              |
+| --------------------------- | ---------------------------------------- |
+| `__tenonDuplicateColumns`   | A join's two sides share a column name   |
+| `__tenonInferenceSelfJoin`  | An inferred join is a self-join          |
+| `__tenonInferenceMissing`   | No foreign key connects the join's sides |
+| `__tenonInferenceAmbiguous` | More than one foreign key connects them  |
+| `__tenonAmbiguousHasMany`   | Two FKs on a child point at the parent   |
 
 The first four come from a join or projection. The last is different in
 origin: it's stamped on a has-many accessor's relation (see the accessor

@@ -295,8 +295,7 @@ export type MergedColumnsWithFkBrand<
   RFKs extends ForeignKeyTuple,
   RSchema extends string,
   RName extends string,
-> = MergedColumns<L, R> &
-  FkBrand<LFKs, LSchema, LName, RFKs, RSchema, RName>;
+> = MergedColumns<L, R> & FkBrand<LFKs, LSchema, LName, RFKs, RSchema, RName>;
 
 /**
  * Brand intersected onto a has-many accessor's value type when more
@@ -457,10 +456,7 @@ export type HasManyAccessors<
   T extends TableShape,
   S extends Record<string, TableShape>,
 > = {
-  [K in keyof S as HasManyAccessorKey<T, S[K]>]: HasManyAccessorValue<
-    T,
-    S[K]
-  >;
+  [K in keyof S as HasManyAccessorKey<T, S[K]>]: HasManyAccessorValue<T, S[K]>;
 };
 
 /**
@@ -489,23 +485,25 @@ type HasManyAccessorKey<T extends TableShape, U extends TableShape> =
  * at `db.run` time, the same way duplicate-column and self-join
  * brands surface.
  */
-type HasManyAccessorValue<T extends TableShape, U extends TableShape> =
-  FkMatches<
-    U["_foreignKeys"],
-    T["_schema"],
-    T["_physicalName"]
-  >["length"] extends 1
-    ? Relation<U["_columns"], U["_foreignKeys"]>
-    : Relation<
-        U["_columns"] &
-          AmbiguousHasManyBrand<
-            T["_schema"],
-            T["_physicalName"],
-            U["_schema"],
-            U["_physicalName"]
-          >,
-        U["_foreignKeys"]
-      >;
+type HasManyAccessorValue<
+  T extends TableShape,
+  U extends TableShape,
+> = FkMatches<
+  U["_foreignKeys"],
+  T["_schema"],
+  T["_physicalName"]
+>["length"] extends 1
+  ? Relation<U["_columns"], U["_foreignKeys"]>
+  : Relation<
+      U["_columns"] &
+        AmbiguousHasManyBrand<
+          T["_schema"],
+          T["_physicalName"],
+          U["_schema"],
+          U["_physicalName"]
+        >,
+      U["_foreignKeys"]
+    >;
 
 /**
  * Find the table in `S` whose physical (schema, name) pair matches
@@ -595,18 +593,20 @@ type StripIdSuffix<
  * runtime that the v1 SingleRow doesn't carry. See the v1.11 plan's
  * "Open questions" section for the followup.
  */
-type BelongsToAccessorValue<FK, S extends Record<string, TableShape>> =
-  FK extends ForeignKey
-    ? LookupTableByPhysical<
-        S,
-        FK["referencedSchema"],
-        FK["referencedTable"]
-      > extends infer Ref
-      ? Ref extends TableShape
-        ? SingleRow<Ref["_columns"]>
-        : never
+type BelongsToAccessorValue<
+  FK,
+  S extends Record<string, TableShape>,
+> = FK extends ForeignKey
+  ? LookupTableByPhysical<
+      S,
+      FK["referencedSchema"],
+      FK["referencedTable"]
+    > extends infer Ref
+    ? Ref extends TableShape
+      ? SingleRow<Ref["_columns"]>
       : never
-    : never;
+    : never
+  : never;
 
 /** All FK-derived accessors (has-many + belongs-to) for a table. */
 export type AccessorsFor<

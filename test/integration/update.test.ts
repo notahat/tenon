@@ -69,9 +69,7 @@ describe("Database.run for UPDATE", () => {
       const database = new Database(sharedPool);
 
       const result = await database.run(
-        users
-          .where(users.email.eq("a@example.com"))
-          .update({ name: "Pete" }),
+        users.where(users.email.eq("a@example.com")).update({ name: "Pete" }),
       );
 
       expectTypeOf(result).toEqualTypeOf<{ readonly rowCount: number }>();
@@ -135,9 +133,7 @@ describe("Database.run for UPDATE", () => {
       const database = new Database(sharedPool);
 
       await database.run(
-        users
-          .where(users.email.eq("a@example.com"))
-          .update({ name: null }),
+        users.where(users.email.eq("a@example.com")).update({ name: null }),
       );
 
       const row = await database

@@ -61,9 +61,7 @@ const tenantUsersComposite = defineTable(
 type UsersColumns = (typeof users)["_columns"];
 
 test("find returns a WritableSingleRow over the table's columns", () => {
-  expectTypeOf(users.find(1)).toEqualTypeOf<
-    WritableSingleRow<UsersColumns>
-  >();
+  expectTypeOf(users.find(1)).toEqualTypeOf<WritableSingleRow<UsersColumns>>();
 });
 
 test("find's argument is typed by the primary-key column", () => {

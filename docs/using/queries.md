@@ -53,16 +53,16 @@ const adults = await db.run(users.where(users.age.gte(18)));
 
 The comparators are:
 
-| Method | SQL | Meaning |
-| --- | --- | --- |
-| `.eq(value)` | `=` | Equal to |
-| `.neq(value)` | `<>` | Not equal to |
-| `.lt(value)` | `<` | Less than |
-| `.lte(value)` | `<=` | Less than or equal |
-| `.gt(value)` | `>` | Greater than |
-| `.gte(value)` | `>=` | Greater than or equal |
-| `.in([...])` | `IN` | Member of a list |
-| `.isNull()` | `IS NULL` | Value is SQL NULL |
+| Method         | SQL           | Meaning               |
+| -------------- | ------------- | --------------------- |
+| `.eq(value)`   | `=`           | Equal to              |
+| `.neq(value)`  | `<>`          | Not equal to          |
+| `.lt(value)`   | `<`           | Less than             |
+| `.lte(value)`  | `<=`          | Less than or equal    |
+| `.gt(value)`   | `>`           | Greater than          |
+| `.gte(value)`  | `>=`          | Greater than or equal |
+| `.in([...])`   | `IN`          | Member of a list      |
+| `.isNull()`    | `IS NULL`     | Value is SQL NULL     |
 | `.isNotNull()` | `IS NOT NULL` | Value is not SQL NULL |
 
 SQL `=` never matches NULL, so use `.isNull()` and `.isNotNull()` for

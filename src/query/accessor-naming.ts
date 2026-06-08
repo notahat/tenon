@@ -16,7 +16,9 @@
  * pluralisation logic; whatever the database calls the table is what
  * the accessor is called.
  */
-export function hasManyAccessorName(referencingTablePhysicalName: string): string {
+export function hasManyAccessorName(
+  referencingTablePhysicalName: string,
+): string {
   return referencingTablePhysicalName;
 }
 

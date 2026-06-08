@@ -88,7 +88,9 @@ describe("emitSchemaFile", () => {
     const output = emitSchemaFile([
       column("public", "weird-name", "id", "int4", false),
     ]);
-    expect(output).toContain(`weird_name: defineTable("public", "weird-name", {`);
+    expect(output).toContain(
+      `weird_name: defineTable("public", "weird-name", {`,
+    );
     expect(output).toContain(`export const { weird_name } = schema;`);
   });
 
@@ -105,7 +107,9 @@ describe("emitSchemaFile", () => {
       [],
     );
     expect(output).not.toContain("], [");
-    expect(output).toMatch(/users: defineTable\("public", "users", \{[\s\S]*?\}\)/);
+    expect(output).toMatch(
+      /users: defineTable\("public", "users", \{[\s\S]*?\}\)/,
+    );
   });
 
   it("renders a fourth-argument FK array for single-column FKs", () => {
@@ -158,7 +162,9 @@ describe("emitSchemaFile", () => {
       output.indexOf("users: defineTable"),
       output.indexOf("organizations: defineTable"),
     );
-    const orgsBlock = output.slice(output.indexOf("organizations: defineTable"));
+    const orgsBlock = output.slice(
+      output.indexOf("organizations: defineTable"),
+    );
     expect(usersBlock).toContain(`name: "users_org_id_fkey"`);
     expect(orgsBlock).not.toContain(`users_org_id_fkey`);
   });

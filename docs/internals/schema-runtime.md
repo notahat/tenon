@@ -51,7 +51,7 @@ Three details are worth drawing out:
 - **`as` preserves physical identity.** `users.as("u")` calls
   `buildTable` again with a new alias but the same `schema` and `name`.
   The alias changes how columns are qualified; the physical `(schema,
-  name)` is untouched. That's what lets the type system spot a self-join
+name)` is untouched. That's what lets the type system spot a self-join
   by comparing physical identities even after one side is re-aliased.
   Foreign keys and the primary key carry across unchanged, because they
   reference physical names, not aliases.

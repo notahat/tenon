@@ -67,22 +67,24 @@ export type WiredTable<
  * Omit-then-intersect path doesn't accidentally re-introduce a method
  * we already removed.
  */
-type WiredFind<T extends TableShape, S extends Record<string, TableShape>> =
-  T extends {
-    _columns: infer C extends ColumnsShape;
-    _primaryKey: { readonly columns: readonly [infer Col extends string] };
-  }
-    ? Col extends keyof C
-      ? {
-          /**
-           * Look up a row by its primary key. The returned SingleRow
-           * carries association accessors (has-many + belongs-to)
-           * derived from the FK metadata across the schema bag.
-           */
-          find(id: C[Col]["_tsType"]): WiredSingleRow<T, S>;
-        }
-      : Record<never, never>
-    : Record<never, never>;
+type WiredFind<
+  T extends TableShape,
+  S extends Record<string, TableShape>,
+> = T extends {
+  _columns: infer C extends ColumnsShape;
+  _primaryKey: { readonly columns: readonly [infer Col extends string] };
+}
+  ? Col extends keyof C
+    ? {
+        /**
+         * Look up a row by its primary key. The returned SingleRow
+         * carries association accessors (has-many + belongs-to)
+         * derived from the FK metadata across the schema bag.
+         */
+        find(id: C[Col]["_tsType"]): WiredSingleRow<T, S>;
+      }
+    : Record<never, never>
+  : Record<never, never>;
 
 /**
  * Wire association accessors onto each Table's `find` result. The
@@ -199,8 +201,7 @@ function singleColumnFksPointingAt(
 /** Two TableShapes target the same physical (schema, name) pair. */
 function samePhysicalTable(left: TableShape, right: TableShape): boolean {
   return (
-    left._schema === right._schema &&
-    left._physicalName === right._physicalName
+    left._schema === right._schema && left._physicalName === right._physicalName
   );
 }
 
@@ -333,14 +334,14 @@ function buildBelongsToSingleRow(
     parameter(childId),
   );
   const projectionItems = parent._columnNames.map((name) =>
-    projectionItem(
-      columnRef({ tableAlias: parentAlias, column: name }),
-      name,
-    ),
+    projectionItem(columnRef({ tableAlias: parentAlias, column: name }), name),
   );
   const node = limitNode(
     projectNode(
-      whereNode(innerJoinNode(parentRef, childRef, joinPredicate), wherePredicate),
+      whereNode(
+        innerJoinNode(parentRef, childRef, joinPredicate),
+        wherePredicate,
+      ),
       projectionItems,
     ),
     1,

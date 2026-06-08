@@ -63,8 +63,9 @@ describe("defineSchema", () => {
     const { users: wiredUsers } = defineSchema({ users, posts });
 
     const single = wiredUsers.find(1);
-    const accessor = (single as unknown as { posts: Relation<typeof posts._columns> })
-      .posts;
+    const accessor = (
+      single as unknown as { posts: Relation<typeof posts._columns> }
+    ).posts;
     expect(accessor).toBeInstanceOf(Relation);
   });
 
@@ -89,9 +90,11 @@ describe("defineSchema", () => {
     );
     const { users: wiredUsers } = defineSchema({ users, posts });
 
-    const accessor = (wiredUsers.find(42) as unknown as {
-      posts: Relation<typeof posts._columns>;
-    }).posts;
+    const accessor = (
+      wiredUsers.find(42) as unknown as {
+        posts: Relation<typeof posts._columns>;
+      }
+    ).posts;
     const compiled = relationToSql(accessor.node);
     expect(compiled.text).toBe(
       `SELECT * FROM "public"."posts" WHERE ("posts"."author_id" = $1)`,
@@ -132,8 +135,9 @@ describe("defineSchema", () => {
     );
     const { users: wiredUsers } = defineSchema({ users, messages });
 
-    expect((wiredUsers.find(1) as unknown as { messages?: unknown }).messages)
-      .toBeUndefined();
+    expect(
+      (wiredUsers.find(1) as unknown as { messages?: unknown }).messages,
+    ).toBeUndefined();
   });
 
   it("skips a has-many accessor that would shadow a column on the parent", () => {
@@ -167,7 +171,9 @@ describe("defineSchema", () => {
     // inherited from posts (a Column instance — but it shouldn't be
     // there at all on a SingleRow). Practically, nothing should be
     // assigned by defineSchema for this name.
-    expect((single as unknown as { comments?: unknown }).comments).toBeUndefined();
+    expect(
+      (single as unknown as { comments?: unknown }).comments,
+    ).toBeUndefined();
   });
 
   it("does not add a self-referential has-many on the parent's own physical name", () => {

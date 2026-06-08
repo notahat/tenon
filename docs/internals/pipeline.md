@@ -37,7 +37,9 @@ whole class in `src/query/Relation.ts`; the runtime part is just:
 ```ts
 class Relation<Columns, FKs> {
   constructor(readonly node: RelationNode) {}
-  where(predicate) { return new Relation(whereNode(this.node, predicate.node)); }
+  where(predicate) {
+    return new Relation(whereNode(this.node, predicate.node));
+  }
   // order, limit, offset, project, innerJoin: all the same shape
 }
 ```
@@ -49,12 +51,12 @@ mutated, and each step adds one layer.
 So the chain builds up one node at a time. Starting from `posts` (a
 `Relation` wrapping a `TableRef`):
 
-| You write | You get back | Wrapping |
-| --- | --- | --- |
-| `posts` | `Relation` | `TableRef` for `public.posts` |
+| You write           | You get back  | Wrapping                                           |
+| ------------------- | ------------- | -------------------------------------------------- |
+| `posts`             | `Relation`    | `TableRef` for `public.posts`                      |
 | `.innerJoin(users)` | `JoinBuilder` | `InnerJoin` around the `TableRef`, with `on: null` |
-| `.where(...)` | `Relation` | `Where` around the `InnerJoin` |
-| `.project(...)` | `Relation` | `Project` around the `Where` |
+| `.where(...)`       | `Relation`    | `Where` around the `InnerJoin`                     |
+| `.project(...)`     | `Relation`    | `Project` around the `Where`                       |
 
 The AST node types are plain interfaces in `src/ast/relation.ts`, each
 built by a small pure function (`where`, `project`, `innerJoin`, and so

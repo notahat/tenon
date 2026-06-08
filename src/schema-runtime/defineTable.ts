@@ -38,22 +38,24 @@ const EMPTY_PRIMARY_KEY: PrimaryKey = { columns: [] };
  * resolves to an empty type so the method is absent from the Table
  * surface.
  */
-type FindMethod<Columns extends ColumnsShape, PK extends PrimaryKey> =
-  PK extends { readonly columns: readonly [infer Col extends string] }
-    ? Col extends keyof Columns
-      ? {
-          /**
-           * Look up a row by its primary key. Returns a
-           * WritableSingleRow that runs to `RowOf<Columns>`, throwing
-           * `RowNotFoundError` if no row matches; chain `.delete()` or
-           * `.update(attrs)` to build a write on the same primary-key
-           * predicate. Available only on tables with a single-column
-           * primary key.
-           */
-          find(id: Columns[Col]["_tsType"]): WritableSingleRow<Columns>;
-        }
-      : Record<never, never>
-    : Record<never, never>;
+type FindMethod<
+  Columns extends ColumnsShape,
+  PK extends PrimaryKey,
+> = PK extends { readonly columns: readonly [infer Col extends string] }
+  ? Col extends keyof Columns
+    ? {
+        /**
+         * Look up a row by its primary key. Returns a
+         * WritableSingleRow that runs to `RowOf<Columns>`, throwing
+         * `RowNotFoundError` if no row matches; chain `.delete()` or
+         * `.update(attrs)` to build a write on the same primary-key
+         * predicate. Available only on tables with a single-column
+         * primary key.
+         */
+        find(id: Columns[Col]["_tsType"]): WritableSingleRow<Columns>;
+      }
+    : Record<never, never>
+  : Record<never, never>;
 
 /**
  * The shape of a defined table: a Relation with column accessors
@@ -243,7 +245,14 @@ function buildTable<
     as<NewAlias extends string>(
       newAlias: NewAlias,
     ): Table<NewAlias, Columns, FKs, PK, Schema, PhysicalName> {
-      return buildTable(schema, name, newAlias, columns, foreignKeys, primaryKey);
+      return buildTable(
+        schema,
+        name,
+        newAlias,
+        columns,
+        foreignKeys,
+        primaryKey,
+      );
     },
     // No runtime override for `innerJoin`: it's inherited from
     // `Relation.prototype` via the `new Relation(node)` above. The

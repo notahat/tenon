@@ -41,15 +41,15 @@ users.where(...).limit(10)   ==   Limit -> Where -> TableRef
 
 `RelationNode` is the union of all seven:
 
-| Node | Fields beyond `kind` | Role |
-| --- | --- | --- |
-| `TableRef` | `schema`, `name`, `alias`, `foreignKeys` | The leaf: a base table |
-| `Project` | `source`, `items` | The SELECT list |
-| `Where` | `source`, `predicate` | A filter |
-| `Order` | `source`, `terms` | ORDER BY, terms in order |
-| `Limit` | `source`, `count` | LIMIT |
-| `Offset` | `source`, `count` | OFFSET |
-| `InnerJoin` | `source`, `right`, `on` | A join |
+| Node        | Fields beyond `kind`                     | Role                     |
+| ----------- | ---------------------------------------- | ------------------------ |
+| `TableRef`  | `schema`, `name`, `alias`, `foreignKeys` | The leaf: a base table   |
+| `Project`   | `source`, `items`                        | The SELECT list          |
+| `Where`     | `source`, `predicate`                    | A filter                 |
+| `Order`     | `source`, `terms`                        | ORDER BY, terms in order |
+| `Limit`     | `source`, `count`                        | LIMIT                    |
+| `Offset`    | `source`, `count`                        | OFFSET                   |
+| `InnerJoin` | `source`, `right`, `on`                  | A join                   |
 
 Three of these carry detail worth knowing:
 
@@ -77,13 +77,13 @@ Expressions are the leaves of the value world: the things inside a
 is a union of five, and the set is kept deliberately small so the
 serialiser stays simple:
 
-| Node | Fields beyond `kind` | Role |
-| --- | --- | --- |
-| `ColumnRef` | `tableAlias`, `column` | A qualified column |
-| `Parameter` | `value` | A bound value |
-| `BinaryOp` | `operator`, `left`, `right` | `=`, `<`, `AND`, ... |
-| `UnaryOp` | `operator`, `operand` | `NOT`, `IS NULL`, ... |
-| `InList` | `operand`, `values` | `x IN (...)` |
+| Node        | Fields beyond `kind`        | Role                  |
+| ----------- | --------------------------- | --------------------- |
+| `ColumnRef` | `tableAlias`, `column`      | A qualified column    |
+| `Parameter` | `value`                     | A bound value         |
+| `BinaryOp`  | `operator`, `left`, `right` | `=`, `<`, `AND`, ...  |
+| `UnaryOp`   | `operator`, `operand`       | `NOT`, `IS NULL`, ... |
+| `InList`    | `operand`, `values`         | `x IN (...)`          |
 
 The operator sets are themselves small closed unions:
 `BinaryOperator` is the six comparisons plus `AND` and `OR`;

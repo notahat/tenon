@@ -46,8 +46,11 @@ describe("belongs-to accessors", () => {
       { columns: ["id"] },
     );
     const { posts: wiredPosts } = defineSchema({ users, posts });
-    const accessor = (wiredPosts.find(1) as unknown as { author: SingleRow<typeof users._columns> })
-      .author;
+    const accessor = (
+      wiredPosts.find(1) as unknown as {
+        author: SingleRow<typeof users._columns>;
+      }
+    ).author;
     expect(accessor).toBeInstanceOf(SingleRow);
   });
 
@@ -75,9 +78,11 @@ describe("belongs-to accessors", () => {
       { columns: ["id"] },
     );
     const { posts: wiredPosts } = defineSchema({ users, posts });
-    const accessor = (wiredPosts.find(7) as unknown as {
-      author: SingleRow<typeof users._columns>;
-    }).author;
+    const accessor = (
+      wiredPosts.find(7) as unknown as {
+        author: SingleRow<typeof users._columns>;
+      }
+    ).author;
     const compiled = relationToSql(accessor.node);
     expect(compiled.text).toBe(
       `SELECT "users"."id", "users"."email" FROM "public"."users" ` +

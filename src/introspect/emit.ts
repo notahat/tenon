@@ -142,9 +142,7 @@ function renderTableEntry(
   const compositeFks = foreignKeys.filter((fk) => fk.columns.length > 1);
   const pkLiteral = renderPrimaryKey(primaryKey);
 
-  const preamble = compositeFks
-    .map(renderSkippedCompositeComment)
-    .map(indent);
+  const preamble = compositeFks.map(renderSkippedCompositeComment).map(indent);
   const head =
     `  ${exportName}: defineTable(` +
     `${renderStringLiteral(schema)}, ${renderStringLiteral(tableName)}, {`;
@@ -157,12 +155,9 @@ function renderTableEntry(
     return [...preamble, head, ...columnLines, "  }),"].join("\n");
   }
   if (singleColumnFks.length === 0) {
-    return [
-      ...preamble,
-      head,
-      ...columnLines,
-      `  }, [], ${pkLiteral}),`,
-    ].join("\n");
+    return [...preamble, head, ...columnLines, `  }, [], ${pkLiteral}),`].join(
+      "\n",
+    );
   }
   if (pkLiteral === null) {
     return [

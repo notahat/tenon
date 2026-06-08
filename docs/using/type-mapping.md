@@ -36,7 +36,7 @@ The two type parameters and three flags each do one job:
 - `hasDefault`. Whether the column has a `DEFAULT` or is an identity
   column. This decides whether it's optional on insert.
 - `isGenerated`. Whether the column is `GENERATED ALWAYS AS (...)
-  STORED`. A generated column can't be written at all.
+STORED`. A generated column can't be written at all.
 
 You don't write these by hand. The generator reads them from the
 Postgres catalog. What follows is how to read them back.
@@ -45,18 +45,18 @@ Postgres catalog. What follows is how to read them back.
 
 Tenon maps a fixed set of Postgres types to TypeScript:
 
-| Postgres type | TypeScript |
-| --- | --- |
-| `bool` | `boolean` |
-| `int2`, `int4`, `float4`, `float8` | `number` |
-| `int8`, `numeric` | `string` |
-| `text`, `varchar`, `char`, `bpchar`, `name` | `string` |
-| `uuid` | `string` |
-| `date`, `time`, `timetz`, `timestamp` | `string` |
-| `timestamptz` | `Date` |
-| `bytea` | `Buffer` |
-| `json`, `jsonb` | `unknown` |
-| `T[]` (any array) | `TsType[]` |
+| Postgres type                               | TypeScript |
+| ------------------------------------------- | ---------- |
+| `bool`                                      | `boolean`  |
+| `int2`, `int4`, `float4`, `float8`          | `number`   |
+| `int8`, `numeric`                           | `string`   |
+| `text`, `varchar`, `char`, `bpchar`, `name` | `string`   |
+| `uuid`                                      | `string`   |
+| `date`, `time`, `timetz`, `timestamp`       | `string`   |
+| `timestamptz`                               | `Date`     |
+| `bytea`                                     | `Buffer`   |
+| `json`, `jsonb`                             | `unknown`  |
+| `T[]` (any array)                           | `TsType[]` |
 
 A few choices are worth knowing:
 

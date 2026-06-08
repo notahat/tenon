@@ -33,7 +33,9 @@ import { Pool } from "pg";
 import { Database } from "@notahat/tenon";
 import { users, posts } from "./schema";
 
-const db = new Database(new Pool({ connectionString: process.env.DATABASE_URL }));
+const db = new Database(
+  new Pool({ connectionString: process.env.DATABASE_URL }),
+);
 ```
 
 **A simple query.** Filter, order, and read rows back. The result type

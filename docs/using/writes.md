@@ -62,9 +62,7 @@ An update has to say which rows it touches, so you narrow the table with
 change:
 
 ```ts
-await db.run(
-  users.where(users.email.eq("a@example.com")).update({ age: 31 }),
-);
+await db.run(users.where(users.email.eq("a@example.com")).update({ age: 31 }));
 ```
 
 Chained `.where` calls combine with `AND`, the same as in a query, and
