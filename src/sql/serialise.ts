@@ -178,8 +178,9 @@ function aliasOf(tableRef: TableRef): string {
  * the source subtree and the right TableRef. The predicate is built
  * from the unique single-column FK that connects the two sides;
  * composite FKs and self-joins are ignored. Throws if zero or more
- * than one FK matches — commit 7 will replace these throws with
- * type-level brands that surface at db.run time.
+ * than one FK matches. The type system catches those same cases as
+ * brands that surface at db.run time, so in typed code these throws
+ * are a defensive backstop.
  */
 function inferJoinPredicate(
   source: RelationNode,
