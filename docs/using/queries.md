@@ -91,6 +91,31 @@ await db.run(users.where(users.age.gte(18)).where(users.age.lt(65)));
 // WHERE ("users"."age" >= $1) AND ("users"."age" < $2)
 ```
 
+Chained `where` only ever joins with `AND`. For anything else, build a
+single expression with the `.and()`, `.or()`, and `.not()` methods that
+every boolean expression carries. `.or()` is the one chaining can't
+express:
+
+```ts
+await db.run(users.where(users.age.lt(18).or(users.age.gte(65))));
+// WHERE (("users"."age" < $1) OR ("users"."age" >= $2))
+```
+
+They nest, so you group conditions by where you call them. `.and()` and
+`.or()` each join two expressions; `.not()` negates one:
+
+```ts
+await db.run(
+  users.where(
+    users.age
+      .gte(18)
+      .and(users.email.eq("a@example.com").or(users.email.eq("b@example.com"))),
+  ),
+);
+// WHERE (("users"."age" >= $1)
+//   AND (("users"."email" = $2) OR ("users"."email" = $3)))
+```
+
 ## Sorting
 
 Order the result with `.asc()` or `.desc()` on a column, passed to
