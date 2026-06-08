@@ -121,10 +121,12 @@ inferred joins, single-row `insert`, predicate-narrowed `update` and
 UUID primary keys both work. PostgreSQL only.
 
 Not yet supported: outer joins, aggregates / `group by`, set
-operations, sub-queries / CTEs, multi-row inserts, `ON CONFLICT`,
-`UPDATE ... FROM`, `DELETE ... USING`, transactions, and streaming. The
-AST and type machinery are designed to absorb these without breaking
-changes. See [the architecture overview](docs/internals/).
+operations, sub-queries / CTEs, text pattern matching (`LIKE` /
+`ILIKE`), multi-row inserts, `ON CONFLICT`, unconditional `UPDATE`
+(there's no `updateAll` counterpart to `deleteAll`), `UPDATE ... FROM`,
+`DELETE ... USING`, transactions, and streaming. The AST and type
+machinery are designed to absorb these without breaking changes. See
+[the architecture overview](docs/internals/).
 
 ## Development
 
