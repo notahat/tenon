@@ -47,19 +47,19 @@ const widgets = defineTable("public", "widgets", {
 type WidgetsColumns = (typeof widgets)["_columns"];
 
 test("InsertableAttrs requires NOT NULL columns without defaults", () => {
-  expectTypeOf<InsertableAttrs<WidgetsColumns>>().toMatchTypeOf<{
+  expectTypeOf<InsertableAttrs<WidgetsColumns>>().toMatchObjectType<{
     name: string;
   }>();
 });
 
 test("InsertableAttrs makes nullable columns optional and accepting of null", () => {
-  expectTypeOf<InsertableAttrs<WidgetsColumns>>().toMatchTypeOf<{
+  expectTypeOf<InsertableAttrs<WidgetsColumns>>().toMatchObjectType<{
     description?: string | null;
   }>();
 });
 
 test("InsertableAttrs makes columns with defaults optional", () => {
-  expectTypeOf<InsertableAttrs<WidgetsColumns>>().toMatchTypeOf<{
+  expectTypeOf<InsertableAttrs<WidgetsColumns>>().toMatchObjectType<{
     id?: number;
     created_at?: Date;
   }>();
@@ -86,12 +86,12 @@ test("supplying null to a non-nullable column with a default is a compile error"
 
 test(".insert returns Insert<Columns, null>", () => {
   const built = widgets.insert({ name: "x" });
-  expectTypeOf(built).toMatchTypeOf<Insert<WidgetsColumns, null>>();
+  expectTypeOf(built).toExtend<Insert<WidgetsColumns, null>>();
 });
 
 test(".returning(...) flips Returning to the projected shape", () => {
   const returning = widgets.insert({ name: "x" }).returning(widgets.id);
-  expectTypeOf(returning).toMatchTypeOf<
+  expectTypeOf(returning).toExtend<
     Insert<WidgetsColumns, { readonly id: WidgetsColumns["id"] }>
   >();
 });

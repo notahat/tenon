@@ -101,13 +101,13 @@ test("innerJoin's resulting Relation carries the merged FK union", () => {
     .innerJoin(users)
     .on(posts.author_id.eq(users.id))
     .project(posts.id, users.active);
-  expectTypeOf(joined._foreignKeys).toMatchTypeOf<readonly ForeignKey[]>();
+  expectTypeOf(joined._foreignKeys).toExtend<readonly ForeignKey[]>();
   // The merged tuple has at least the posts → users FK.
   type Joined = typeof joined._foreignKeys;
   type FirstFk = Joined extends readonly [infer First, ...infer _]
     ? First
     : never;
-  expectTypeOf<FirstFk>().toMatchTypeOf<{ readonly name: string }>();
+  expectTypeOf<FirstFk>().toExtend<{ readonly name: string }>();
 });
 
 test("FKs default to readonly [] when not supplied at definition", () => {

@@ -68,8 +68,8 @@ test("self-join without .project fails db.run on the duplicate brand", () => {
 });
 
 test("_foreignKeys is exposed as a tuple assignable to readonly ForeignKey[]", () => {
-  expectTypeOf(users._foreignKeys).toMatchTypeOf<readonly ForeignKey[]>();
-  expectTypeOf(users.as("u")._foreignKeys).toMatchTypeOf<
+  expectTypeOf(users._foreignKeys).toExtend<readonly ForeignKey[]>();
+  expectTypeOf(users.as("u")._foreignKeys).toExtend<
     readonly ForeignKey[]
   >();
 });

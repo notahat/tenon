@@ -126,8 +126,8 @@ test("nullable columns widen the row type by | null", () => {
 
 test("project returns a Relation that supports further operators", () => {
   const projected = users.project(users.id);
-  expectTypeOf(projected).toMatchTypeOf<
+  expectTypeOf(projected).toExtend<
     Relation<{ id: typeof users.id._type }>
   >();
-  expectTypeOf(projected.limit(1)).toMatchTypeOf<typeof projected>();
+  expectTypeOf(projected.limit(1)).toExtend<typeof projected>();
 });

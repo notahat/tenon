@@ -57,7 +57,7 @@ const schema = defineSchema({ users, posts });
 
 test("the child's find result exposes a belongs-to accessor named by stripping _id", () => {
   // posts.author_id -> accessor `author` over users columns.
-  expectTypeOf(schema.posts.find(1).author).toMatchTypeOf<
+  expectTypeOf(schema.posts.find(1).author).toExtend<
     SingleRow<typeof users._columns>
   >();
 });
@@ -111,10 +111,10 @@ test("two FKs to the same parent disambiguate by FK column name", () => {
     { columns: ["id"] },
   );
   const messageSchema = defineSchema({ users, messages });
-  expectTypeOf(messageSchema.messages.find(1).sender).toMatchTypeOf<
+  expectTypeOf(messageSchema.messages.find(1).sender).toExtend<
     SingleRow<typeof users._columns>
   >();
-  expectTypeOf(messageSchema.messages.find(1).recipient).toMatchTypeOf<
+  expectTypeOf(messageSchema.messages.find(1).recipient).toExtend<
     SingleRow<typeof users._columns>
   >();
 });

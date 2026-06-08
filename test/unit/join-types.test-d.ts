@@ -59,7 +59,7 @@ const teams = defineTable("public", "teams", {
 });
 
 test("innerJoin returns a JoinBuilder, not a Relation", () => {
-  expectTypeOf(users.innerJoin(posts)).toMatchTypeOf<
+  expectTypeOf(users.innerJoin(posts)).toExtend<
     JoinBuilder<
       typeof users._columns,
       typeof users._foreignKeys,
@@ -75,7 +75,7 @@ test("innerJoin returns a JoinBuilder, not a Relation", () => {
 
 test(".on completes the join into a Relation", () => {
   const joined = users.innerJoin(posts).on(users.id.eq(posts.author_id));
-  expectTypeOf(joined).toMatchTypeOf<
+  expectTypeOf(joined).toExtend<
     Relation<typeof users._columns & typeof posts._columns>
   >();
 });

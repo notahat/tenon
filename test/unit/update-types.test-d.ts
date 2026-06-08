@@ -62,12 +62,12 @@ type UsersColumns = (typeof users)["_columns"];
 
 test("WritableScope.update returns Update<Columns, null>", () => {
   const built = users.where(users.id.eq(1)).update({ name: "Pete" });
-  expectTypeOf(built).toMatchTypeOf<Update<UsersColumns, null>>();
+  expectTypeOf(built).toExtend<Update<UsersColumns, null>>();
 });
 
 test("WritableSingleRow.update returns Update<Columns, null>", () => {
   const built = users.find(1).update({ name: "Pete" });
-  expectTypeOf(built).toMatchTypeOf<Update<UsersColumns, null>>();
+  expectTypeOf(built).toExtend<Update<UsersColumns, null>>();
 });
 
 test(".returning(...) flips Returning to the projected shape", () => {
@@ -75,7 +75,7 @@ test(".returning(...) flips Returning to the projected shape", () => {
     .where(users.id.eq(1))
     .update({ name: "Pete" })
     .returning(users.id);
-  expectTypeOf(returning).toMatchTypeOf<
+  expectTypeOf(returning).toExtend<
     Update<UsersColumns, { readonly id: UsersColumns["id"] }>
   >();
 });

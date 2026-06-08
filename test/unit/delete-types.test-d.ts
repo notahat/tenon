@@ -49,27 +49,27 @@ type UsersColumns = (typeof users)["_columns"];
 
 test("Table.where returns a WritableScope", () => {
   const scope = users.where(users.id.eq(1));
-  expectTypeOf(scope).toMatchTypeOf<WritableScope<"users", UsersColumns>>();
+  expectTypeOf(scope).toExtend<WritableScope<"users", UsersColumns>>();
 });
 
 test("WritableScope.where chains and stays in scope", () => {
   const scope = users.where(users.id.eq(1)).where(users.active.eq(true));
-  expectTypeOf(scope).toMatchTypeOf<WritableScope<"users", UsersColumns>>();
+  expectTypeOf(scope).toExtend<WritableScope<"users", UsersColumns>>();
 });
 
 test("WritableScope.delete returns Delete<Columns, null>", () => {
   const built = users.where(users.id.eq(1)).delete();
-  expectTypeOf(built).toMatchTypeOf<Delete<UsersColumns, null>>();
+  expectTypeOf(built).toExtend<Delete<UsersColumns, null>>();
 });
 
 test("Table.delete and Table.deleteAll both return Delete<Columns, null>", () => {
-  expectTypeOf(users.delete()).toMatchTypeOf<Delete<UsersColumns, null>>();
-  expectTypeOf(users.deleteAll()).toMatchTypeOf<Delete<UsersColumns, null>>();
+  expectTypeOf(users.delete()).toExtend<Delete<UsersColumns, null>>();
+  expectTypeOf(users.deleteAll()).toExtend<Delete<UsersColumns, null>>();
 });
 
 test(".returning(...) flips Returning to the projected shape", () => {
   const returning = users.where(users.id.eq(1)).delete().returning(users.id);
-  expectTypeOf(returning).toMatchTypeOf<
+  expectTypeOf(returning).toExtend<
     Delete<UsersColumns, { readonly id: UsersColumns["id"] }>
   >();
 });

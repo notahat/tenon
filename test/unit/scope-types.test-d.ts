@@ -31,7 +31,7 @@ type UsersColumns = (typeof users)["_columns"];
 
 test("the body's relation parameter infers from the anchor table", () => {
   scope(users, (relation) => {
-    expectTypeOf(relation).toMatchTypeOf<Relation<UsersColumns>>();
+    expectTypeOf(relation).toExtend<Relation<UsersColumns>>();
     return relation;
   });
 });
@@ -79,5 +79,5 @@ test("the returned scope only applies to relations of the matching shape", () =>
   // @ts-expect-error a users-bound scope cannot be applied to posts
   active(posts);
 
-  expectTypeOf(active(users)).toMatchTypeOf<Relation<UsersColumns>>();
+  expectTypeOf(active(users)).toExtend<Relation<UsersColumns>>();
 });

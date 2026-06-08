@@ -58,7 +58,7 @@ const schema = defineSchema({ users, posts });
 test("the parent's find result exposes a has-many accessor named after the child", () => {
   // The accessor is a Relation parameterised over the child's columns
   // and FKs; `db.run` typing below covers the row shape precisely.
-  expectTypeOf(schema.users.find(1).posts).toMatchTypeOf<
+  expectTypeOf(schema.users.find(1).posts).toExtend<
     Relation<typeof posts._columns, typeof posts._foreignKeys>
   >();
 });
