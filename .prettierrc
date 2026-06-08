@@ -4,5 +4,11 @@
   "trailingComma": "all",
   "printWidth": 80,
   "tabWidth": 2,
-  "arrowParens": "always"
+  "arrowParens": "always",
+  "overrides": [
+    {
+      "files": ["*.jsonc", "tsconfig.json", "tsconfig.*.json", ".zed/*.json"],
+      "options": { "parser": "jsonc" }
+    }
+  ]
 }
