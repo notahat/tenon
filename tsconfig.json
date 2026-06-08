@@ -21,13 +21,7 @@
 
     "noEmit": true,
 
-    "skipLibCheck": true
+    "skipLibCheck": true,
   },
-  "include": [
-    "src/**/*",
-    "test/**/*",
-    "vitest.config.ts",
-    "vitest.workspace.ts",
-    "eslint.config.js"
-  ]
+  "include": ["src/**/*", "test/**/*", "vitest.config.ts", "eslint.config.js"],
 }
