@@ -1,0 +1,7 @@
+// Project settings for Zed. Format with prettier on save, matching the
+// `npm run format` script and the repo's .prettierrc, so editor saves
+// and CI's `format:check` agree.
+{
+  "formatter": "prettier",
+  "format_on_save": "on",
+}
