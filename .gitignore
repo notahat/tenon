@@ -5,3 +5,7 @@ coverage
 *.log
 .env
 .env.local
+
+# Personal Claude Code overrides. The committed .claude/settings.json
+# holds team-wide settings; this file is per-developer.
+.claude/settings.local.json
