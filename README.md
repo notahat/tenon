@@ -56,7 +56,7 @@ fixes the shape of the result:
 const stories = await db.run(
   posts.innerJoin(users).project(posts.body, users.email),
 );
-//    ^? Array<{ body: string; email: string }>
+//    ^? Array<{ body: string | null; email: string }>
 ```
 
 If a join is ambiguous (two foreign keys could connect the tables),
@@ -74,7 +74,7 @@ const user = await db.run(users.find(1));
 //    Throws RowNotFoundError if no row has that id.
 
 const theirPosts = await db.run(users.find(1).posts);
-//    ^? Array<{ id: number; author_id: number; body: string }>
+//    ^? Array<{ id: number; author_id: number; body: string | null }>
 
 const author = await db.run(posts.find(1).author);
 //    ^? { id: number; email: string; age: number | null }
@@ -86,7 +86,7 @@ const author = await db.run(posts.find(1).author);
 
 ```ts
 await db.run(users.insert({ email: "pete@notahat.com" }));
-//    ^? { rowCount: number }
+//    ^? { readonly rowCount: number }
 
 const created = await db.run(
   users.insert({ email: "pete@notahat.com" }).returning(users.id, users.email),

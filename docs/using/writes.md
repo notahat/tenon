@@ -73,9 +73,9 @@ only matching rows are updated:
 ```ts
 await db.run(
   users
-    .where(users.active.eq(true))
+    .where(users.age.gte(18))
     .where(users.email.eq("c@example.com"))
-    .update({ name: "Updated" }),
+    .update({ age: 40 }),
 );
 ```
 
@@ -83,7 +83,7 @@ Updating a single row by primary key is common enough to have a
 shorthand: `find(id)` narrows to that row, and you update it directly.
 
 ```ts
-await db.run(users.find(1).update({ name: "Pete" }));
+await db.run(users.find(1).update({ age: 40 }));
 ```
 
 `find` is covered with the other primary-key helpers in
@@ -93,9 +93,9 @@ await db.run(users.find(1).update({ name: "Pete" }));
 
 ```ts
 const updated = await db.run(
-  users.where(users.id.eq(1)).update({ name: "Pete" }).returning(users.name),
+  users.where(users.id.eq(1)).update({ age: 40 }).returning(users.age),
 );
-//    ^? Array<{ name: string | null }>
+//    ^? Array<{ age: number | null }>
 ```
 
 An update with no `.where` narrowing, or with an empty attrs object, is
@@ -114,7 +114,7 @@ await db.run(users.where(users.email.eq("a@example.com")).delete());
 
 ```ts
 const removed = await db.run(
-  users.where(users.active.eq(false)).delete().returning(users.id),
+  users.where(users.age.isNull()).delete().returning(users.id),
 );
 //    ^? Array<{ id: number }>
 ```

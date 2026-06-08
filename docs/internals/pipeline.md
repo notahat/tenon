@@ -23,7 +23,8 @@ There are two things happening at once, and it's worth separating them:
 - **At runtime**, the chain builds a small tree of plain objects, the
   serialiser turns that tree into a SQL string, and the executor runs
   it. This is most of the document.
-- **At the type level**, a parallel set of phantom types tracks which
+- **At the type level**, a parallel set of phantom types (types that
+  exist only at compile time and carry no runtime value) tracks which
   columns exist and what they hold, so the result type is known and
   mistakes are caught when you compile. We cover that briefly at the
   end and in depth in [the type system](types.md).
@@ -58,6 +59,9 @@ So the chain builds up one node at a time. Starting from `posts` (a
 The AST node types are plain interfaces in `src/ast/relation.ts`, each
 built by a small pure function (`where`, `project`, `innerJoin`, and so
 on). A `Where`, for example, is just `{ kind: "Where", source, predicate }`.
+The fluent layer imports these builders under `*Node` aliases (`where as
+whereNode`) so the builder name doesn't clash with the operator method,
+which is why the snippet above calls `whereNode`.
 
 By the time the chain finishes, you're holding a `Relation` wrapping
 this tree:

@@ -96,6 +96,6 @@ TypeScript will then flag any query that no longer matches.
 - [Joins](joins.md): inner joins, inferred and explicit, and self-joins.
 - [Writes](writes.md): inserts, updates, and deletes.
 - [Relationships](relationships.md): `find` and the foreign-key
-  accessors that `defineSchema` wires up.
+  accessors the generated schema wires up for you.
 - [Type mapping](type-mapping.md): how Postgres types become TypeScript
   types, and the nullable and default rules.

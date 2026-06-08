@@ -61,7 +61,9 @@ await db.run(
 ## Explicit joins with `.on`
 
 When there's no foreign key to infer from, or you want to join on a
-different predicate, supply it with `.on`:
+different predicate, supply it with `.on`. Suppose you also have a
+`teams` table with `owner_id` and `name` columns, where `owner_id`
+isn't a declared foreign key:
 
 ```ts
 await db.run(
@@ -105,8 +107,9 @@ you give the two `email` columns distinct names in the result.
 
 ## Joining more than two tables
 
-Chain `innerJoin` to bring in further tables. Each join infers its own
-`ON`, or takes its own `.on`:
+Chain `innerJoin` to bring in further tables. Add a `comments` table
+with a `post_id` foreign key referencing `posts`. Each join infers its
+own `ON`, or takes its own `.on`:
 
 ```ts
 await db.run(

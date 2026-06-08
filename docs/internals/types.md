@@ -107,6 +107,11 @@ TypeScript surfaces the brand's literal-template message right at the
 | `__tenonInferenceAmbiguous` | More than one foreign key connects them |
 | `__tenonAmbiguousHasMany` | Two FKs on a child point at the parent |
 
+The first four come from a join or projection. The last is different in
+origin: it's stamped on a has-many accessor's relation (see the accessor
+maps below), but it surfaces the same way, because running that accessor
+relation is itself a `db.run(...)` call subject to the same constraint.
+
 ### Duplicate columns
 
 `MergedColumns<L, R>` is the join's combined shape. `DuplicateColumnNames`
@@ -123,9 +128,10 @@ catches the same three cases at compile time so the runtime throws never
 fire in typed code. `FkBrand` picks the brand:
 
 1. **Identity widened.** `AnyIdentityWidened` checks whether any of the
-   four schema/name parameters is the wide `string` rather than a
-   literal. That happens when the left side is a chained relation, not a
-   bare `Table`, so its identity isn't statically known. The check bails
+   four schema/name parameters (the two sides' schema and physical name)
+   is the wide `string` rather than a literal. That happens when the
+   left side is a chained relation, not a bare `Table`, so its identity
+   isn't statically known. The check bails
    out with no brand: inference can't be reasoned about, so it's left to
    the runtime backstop.
 2. **Self-join.** `IsSamePhysicalTable` compares the two physical

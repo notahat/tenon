@@ -32,7 +32,7 @@ await db.run(users.find(999)); // throws RowNotFoundError
 [writes](writes.md):
 
 ```ts
-await db.run(users.find(1).update({ name: "Pete" }));
+await db.run(users.find(1).update({ age: 40 }));
 await db.run(users.find(1).delete());
 ```
 
